@@ -1,0 +1,213 @@
+[build-system]
+requires = ["setuptools>=41.0", "setuptools-scm", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sphinx-source-tree"
+version = "0.1.2"
+description = "Generate a reStructuredText file with an ASCII project tree and literalinclude blocks"
+readme = "README.rst"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [
+    {name = "Artur Barseghyan", email = "artur.barseghyan@gmail.com"},
+]
+maintainers = [
+    {name = "Artur Barseghyan", email = "artur.barseghyan@gmail.com"},
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Framework :: Sphinx",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python",
+    "Topic :: Documentation",
+    "Topic :: Documentation :: Sphinx",
+]
+keywords = ["sphinx", "documentation", "source-tree", "literalinclude"]
+dependencies = [
+    "tomli>=2.0; python_version < '3.11'",
+]
+
+[project.urls]
+Homepage = "https://github.com/barseghyanartur/sphinx-source-tree"
+Issues = "https://github.com/barseghyanartur/sphinx-source-tree/issues"
+Documentation = "https://sphinx-source-tree.readthedocs.io/"
+Repository = "https://github.com/barseghyanartur/sphinx-source-tree/"
+Changelog = "https://sphinx-source-tree.readthedocs.io/en/latest/changelog.html"
+
+[project.optional-dependencies]
+all = ["sphinx-source-tree[dev,test,docs]"]
+dev = [
+    "detect-secrets",
+    "doc8",
+    "ipython",
+    "mypy",
+    "pydoclint",
+    "ruff",
+    "uv",
+]
+build = [
+    "build",
+    "pkginfo",
+    "twine",
+    "wheel",
+]
+test = [
+    "pytest",
+    "pytest-cov",
+    "pytest-codeblock",
+]
+docs = [
+    "sphinx",
+    "sphinx-autobuild",
+    "sphinx-rtd-theme>=1.3.0",
+    "sphinx-no-pragma",
+    "PyYAML",
+]
+
+[project.scripts]
+sphinx-source-tree = "sphinx_source_tree:main"
+
+[tool.setuptools]
+py-modules = ["sphinx_source_tree"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["sphinx_source_tree"]
+exclude = [".github", "docs*", "examples*"]
+
+# ── dog-fooding: configure the tool for this project itself ──────────
+
+[tool.sphinx-source-tree]
+# depth = 4
+# output = "docs/source_tree.rst"
+# extensions = [".py", ".rst", ".toml"]
+# ignore = ["__pycache__", "*.pyc", ".git", ".tox", "*.egg-info", ".venv"]
+# include-all = true
+# title = "sphinx-source-tree source"
+# linenos = false
+# extra-languages = {}
+
+[tool.ruff]
+line-length = 80
+lint.select = [
+    "B",  # Bugbear
+    "C4",  # Complexity
+    "E",  # pycodestyle
+    "F",  # Pyflakes
+    "G",  # Logging format
+    "I",  # Isort
+    "ISC",  # Implicit string concatenation
+    "INP",  # Implicit namespace packages
+    "N",  # Naming
+    "PERF",  # Perflint
+    "Q",  # Quotes
+    "SIM",  # Simplify
+    "TD",  # TO DO
+]
+lint.ignore = [
+    "G004",  # Allow use of f-string in logging
+    "ISC003",  # Allow explicitly concatenated strings
+    "TD002",  # Allow to do without author
+    "TD003",  # Allow to do without URL
+]
+fix = true
+src = []
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+    "docs",
+]
+lint.dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+target-version = "py39"
+
+[tool.ruff.lint.per-file-ignores]
+"conftest.py" = [
+    "PERF203"  # Allow `try`-`except` within a loop incurs performance overhead
+]
+
+[tool.ruff.lint.isort]
+known-first-party = []
+known-third-party = []
+
+[tool.doc8]
+ignore-path = [
+    "docs/requirements.txt",
+    "sphinx_source_tree.egg-info/SOURCES.txt",
+    "docs/llms.rst",
+    "docs/source_tree.rst",
+]
+
+[tool.pytest.ini_options]
+addopts = [
+    "-ra",
+    "-vvv",
+    "-q",
+    "--cov=sphinx_source_tree",
+    "--ignore=.tox",
+    "--ignore=build",
+    "--ignore=dist",
+    "--ignore=*.egg-info",
+    "--ignore=docs",
+    "--ignore=tmp",
+    "--cov-report=html",
+    "--cov-report=term",
+    "--cov-report=annotate",
+    "--cov-append",
+    "--capture=no",
+]
+testpaths = [
+    "test_sphinx_source_tree.py",
+    "*.rst",
+    "**/*.rst",
+]
+pythonpath = []
+norecursedirs = [".git"]
+
+[tool.coverage.run]
+relative_files = true
+omit = [".tox/*"]
+
+[tool.coverage.report]
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "@overload",
+]
+
+[tool.mypy]
+check_untyped_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unused_configs = true
+
+[tool.pydoclint]
+style = 'sphinx'
+exclude = '\.git|\.tox|tests/data'
+require-return-section-when-returning-nothing = false
+allow-init-docstring = true
+arg-type-hints-in-docstring = false
