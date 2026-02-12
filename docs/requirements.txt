@@ -38,6 +38,7 @@ docutils==0.21.2
     #   readme-renderer
     #   restructuredtext-lint
     #   sphinx
+    #   sphinx-llms-txt-link
     #   sphinx-no-pragma
     #   sphinx-rtd-theme
 executing==2.2.1
@@ -167,10 +168,13 @@ sphinx==8.2.3
     # via
     #   sphinx-source-tree (pyproject.toml)
     #   sphinx-autobuild
+    #   sphinx-llms-txt-link
     #   sphinx-no-pragma
     #   sphinx-rtd-theme
     #   sphinxcontrib-jquery
 sphinx-autobuild==2025.8.25
+    # via sphinx-source-tree (pyproject.toml)
+sphinx-llms-txt-link==0.1.2
     # via sphinx-source-tree (pyproject.toml)
 sphinx-no-pragma==0.1.2
     # via sphinx-source-tree (pyproject.toml)
