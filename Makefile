@@ -37,7 +37,7 @@ venv:
 
 # Install the project
 install:
-	source $(VENV) && uv pip install -e .[all]
+	source $(VENV) && uv pip install -e .'[all]'
 
 test: clean
 	source $(VENV) && pytest -vrx -s

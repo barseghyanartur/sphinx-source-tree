@@ -43,7 +43,7 @@ Repository = "https://github.com/barseghyanartur/sphinx-source-tree/"
 Changelog = "https://sphinx-source-tree.readthedocs.io/en/latest/changelog.html"
 
 [project.optional-dependencies]
-all = ["sphinx-source-tree[dev,test,docs]"]
+all = ["sphinx-source-tree[dev,test,docs,build]"]
 dev = [
     "detect-secrets",
     "doc8",
