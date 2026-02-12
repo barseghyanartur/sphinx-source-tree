@@ -195,13 +195,6 @@ def resolve_config(
 # helpers
 # ----------------------------------------------------------------------------
 
-# def _is_ignored(rel_path: str, name: str, patterns: list[str]) -> bool:
-#     """Match against both the full relative path and the bare name."""
-#     return any(
-#         fnmatch.fnmatch(rel_path, p) or fnmatch.fnmatch(name, p)
-#         for p in patterns
-#     )
-
 
 def _is_ignored(rel_path: str, name: str, patterns: list[str]) -> bool:
     """Match against both the full relative path and the bare name.
