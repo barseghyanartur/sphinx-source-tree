@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 
 
 @pytest.fixture
-def safe_readme_paths(
+def safe_test_path(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> Generator[Path, None, None]:
