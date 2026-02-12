@@ -74,8 +74,8 @@ Run in your project root:
    sphinx-source-tree
 
 This writes ``docs/source_tree.rst`` with the full tree and
-``literalinclude`` blocks for ``.py``, ``.md``, ``.js`` and ``.rst``
-files.
+``literalinclude`` blocks for ``.js``, ``.json``, ``.md``, ``.py``, ``.rst``,
+``.toml``, ``.yaml`` and ``.yml`` files.
 
 Print to stdout instead:
 
@@ -101,7 +101,7 @@ CLI reference
 
 ``-e, --extensions EXT [EXT ...]``
     File suffixes to include via ``literalinclude``.
-    Default: ``.py .md .js .rst``.
+    Default: ``.js .json .md .py .rst .toml .yaml .yml``.
 
 ``-i, --ignore PAT [PAT ...]``
     Glob patterns to ignore (matched against both the relative path

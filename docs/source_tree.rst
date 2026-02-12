@@ -9,31 +9,19 @@ the contents of each key file.
 
    sphinx-source-tree/
    ├── docs
-   │   ├── changelog.rst
-   │   ├── code_of_conduct.rst
    │   ├── conf.py
    │   ├── contributor_guidelines.rst
    │   ├── documentation.rst
    │   ├── index.rst
    │   ├── llms.rst
-   │   ├── make.bat
-   │   ├── Makefile
    │   ├── package.rst
-   │   ├── requirements.txt
-   │   ├── security.rst
-   │   ├── source_tree.rst
    │   └── sphinx_source_tree.rst
    ├── .coveralls.yml
-   ├── .pre-commit-config.yaml
-   ├── .readthedocs.yaml
-   ├── CHANGELOG.rst
-   ├── CODE_OF_CONDUCT.rst
+   ├── conftest.py
    ├── CONTRIBUTING.rst
-   ├── LICENSE
    ├── Makefile
    ├── pyproject.toml
    ├── README.rst
-   ├── SECURITY.rst
    ├── sphinx_source_tree.py
    ├── test_sphinx_source_tree.py
    └── uv.lock
@@ -44,34 +32,6 @@ the contents of each key file.
 .. literalinclude:: ../.coveralls.yml
    :language: yaml
    :caption: .coveralls.yml
-
-.pre-commit-config.yaml
------------------------
-
-.. literalinclude:: ../.pre-commit-config.yaml
-   :language: yaml
-   :caption: .pre-commit-config.yaml
-
-.readthedocs.yaml
------------------
-
-.. literalinclude:: ../.readthedocs.yaml
-   :language: yaml
-   :caption: .readthedocs.yaml
-
-CHANGELOG.rst
--------------
-
-.. literalinclude:: ../CHANGELOG.rst
-   :language: rst
-   :caption: CHANGELOG.rst
-
-CODE_OF_CONDUCT.rst
--------------------
-
-.. literalinclude:: ../CODE_OF_CONDUCT.rst
-   :language: rst
-   :caption: CODE_OF_CONDUCT.rst
 
 CONTRIBUTING.rst
 ----------------
@@ -87,26 +47,12 @@ README.rst
    :language: rst
    :caption: README.rst
 
-SECURITY.rst
-------------
+conftest.py
+-----------
 
-.. literalinclude:: ../SECURITY.rst
-   :language: rst
-   :caption: SECURITY.rst
-
-docs/changelog.rst
-------------------
-
-.. literalinclude:: changelog.rst
-   :language: rst
-   :caption: docs/changelog.rst
-
-docs/code_of_conduct.rst
-------------------------
-
-.. literalinclude:: code_of_conduct.rst
-   :language: rst
-   :caption: docs/code_of_conduct.rst
+.. literalinclude:: ../conftest.py
+   :language: python
+   :caption: conftest.py
 
 docs/conf.py
 ------------
@@ -149,20 +95,6 @@ docs/package.rst
 .. literalinclude:: package.rst
    :language: rst
    :caption: docs/package.rst
-
-docs/security.rst
------------------
-
-.. literalinclude:: security.rst
-   :language: rst
-   :caption: docs/security.rst
-
-docs/source_tree.rst
---------------------
-
-.. literalinclude:: source_tree.rst
-   :language: rst
-   :caption: docs/source_tree.rst
 
 docs/sphinx_source_tree.rst
 ---------------------------
