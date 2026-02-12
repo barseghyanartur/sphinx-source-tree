@@ -14,15 +14,6 @@ documentation.
 .. _Read the Docs: http://sphinx-source-tree.readthedocs.io/
 .. _GitHub: https://github.com/barseghyanartur/sphinx-source-tree
 
-Generate a reStructuredText (``.rst``) file that contains:
-
-1. An ASCII directory tree of your project.
-2. A ``literalinclude`` directive for every source file you select.
-
-The result is a single ``.rst`` document ready to be included in a `Sphinx`_
-documentation build, specifically for the ``llms.txt``, providing full
-project context for LLMs.
-
 .. image:: https://img.shields.io/pypi/v/sphinx-source-tree.svg
    :target: https://pypi.python.org/pypi/sphinx-source-tree
    :alt: PyPI Version
@@ -50,6 +41,15 @@ project context for LLMs.
 .. image:: https://coveralls.io/repos/github/barseghyanartur/sphinx-source-tree/badge.svg?branch=main&service=github
     :target: https://coveralls.io/github/barseghyanartur/sphinx-source-tree?branch=main
     :alt: Coverage
+
+Generate a reStructuredText (``.rst``) file that contains:
+
+1. An ASCII directory tree of your project.
+2. A ``literalinclude`` directive for every source file you select.
+
+The result is a single ``.rst`` document ready to be included in a `Sphinx`_
+documentation build, specifically for the ``llms.txt``, providing full
+project context for LLMs.
 
 Prerequisites
 =============
