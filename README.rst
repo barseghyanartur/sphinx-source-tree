@@ -134,7 +134,7 @@ All CLI options (except ``--stdout`` and ``--version``) can be set under
 ``[tool.sphinx-source-tree]`` in your project's ``pyproject.toml``.
 CLI arguments always take precedence.
 
-Example:
+Single-file example:
 
 .. code-block:: toml
 
@@ -151,6 +151,48 @@ Example:
 
 Key names use hyphens (``include-all``) to follow TOML/PEP 621
 convention; they are normalised internally.
+
+Multiple output files
+---------------------
+
+You can generate several ``.rst`` files in one run by adding
+``[[tool.sphinx-source-tree.files]]`` entries.  Top-level settings act as
+shared defaults; each entry can override any of them.
+
+.. code-block:: toml
+
+   [tool.sphinx-source-tree]
+   # Shared defaults — applied to every file unless overridden
+   depth = 10
+   ignore = ["__pycache__", "*.pyc", ".git", "*.egg-info"]
+   linenos = false
+
+   [[tool.sphinx-source-tree.files]]
+   output = "docs/source_tree.rst"
+   title = "Full project source"
+   # inherits depth, ignore, linenos from the section above
+
+   [[tool.sphinx-source-tree.files]]
+   output = "docs/api_tree.rst"
+   title = "API source"
+   extensions = [".py"]
+   whitelist = ["src"]
+   include-all = false
+   depth = 5            # overrides the shared default
+
+   [[tool.sphinx-source-tree.files]]
+   output = "docs/docs_tree.rst"
+   title = "Documentation files"
+   extensions = [".rst", ".md"]
+   whitelist = ["docs"]
+   include-all = false
+
+The merge priority is: **built-in defaults** < **top-level
+``[tool.sphinx-source-tree]``** < **per-file ``[[…files]]`` entry** <
+**CLI arguments**.
+
+When no ``[[files]]`` entries are present the tool behaves exactly as
+before, so existing configurations are fully backward compatible.
 
 Python API
 ----------

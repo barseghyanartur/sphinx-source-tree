@@ -5,6 +5,7 @@ Generate a reStructuredText file containing an ASCII project tree
 and ``literalinclude`` directives for every source file.
 
 Reads defaults from ``[tool.sphinx-source-tree]`` in ``pyproject.toml``.
+Per-file settings live under ``[[tool.sphinx-source-tree.files]]``.
 CLI arguments always take precedence.
 """
 
@@ -18,7 +19,7 @@ from pathlib import Path
 from typing import Any
 
 __title__ = "sphinx-source-tree"
-__version__ = "0.1"
+__version__ = "0.2"
 __author__ = "Artur Barseghyan <artur.barseghyan@gmail.com>"
 __copyright__ = "2026 Artur Barseghyan"
 __license__ = "MIT"
@@ -48,33 +49,36 @@ DEFAULTS: dict[str, Any] = {
         ".yml",
     ],
     "ignore": [
-        "__pycache__",
+        "*.egg-info",
+        "*.py,cover",
         "*.pyc",
         "*.pyo",
-        "*.py,cover",
+        ".DS_Store",
+        ".coverage",
+        ".coverage.*",
         ".git",
         ".hg",
+        ".hypothesis",
+        ".idea",
+        ".mypy_cache",
+        ".nox",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".secrets.baseline",
         ".svn",
         ".tox",
-        ".nox",
         ".venv",
-        "venv",
-        "env",
-        "*.egg-info",
-        "dist",
-        "build",
-        "node_modules",
-        ".mypy_cache",
-        ".pytest_cache",
-        ".coverage",
-        "htmlcov",
-        ".idea",
         ".vscode",
-        ".DS_Store",
+        "LICENSE",
         "Thumbs.db",
-        ".ruff_cache",
-        ".coverage.*",
-        ".secrets.baseline",
+        "__pycache__",
+        "_static",
+        "build",
+        "dist",
+        "env",
+        "htmlcov",
+        "node_modules",
+        "venv",
     ],
     "whitelist": [],
     "include_all": True,
@@ -138,7 +142,11 @@ LANGUAGE_MAP: dict[str, str] = {
 
 
 def load_config(project_root: Path) -> dict[str, Any]:
-    """Load ``[tool.sphinx-source-tree]`` from *pyproject.toml*."""
+    """Load ``[tool.sphinx-source-tree]`` from *pyproject.toml*.
+
+    Returns the full section dict, which may contain a ``files`` key
+    (list of per-file override dicts) alongside top-level defaults.
+    """
     pyproject_path = project_root / "pyproject.toml"
     if not pyproject_path.is_file():
         return {}
@@ -154,6 +162,11 @@ def load_config(project_root: Path) -> dict[str, Any]:
         return {}
 
 
+def _normalise_keys(d: dict[str, Any]) -> dict[str, Any]:
+    """Return a copy of *d* with hyphenated keys converted to underscores."""
+    return {k.replace("-", "_"): v for k, v in d.items()}
+
+
 def resolve_config(
     cli_ns: argparse.Namespace,
     defaults: dict[str, Any] | None = None,
@@ -161,6 +174,11 @@ def resolve_config(
     """Merge *defaults* < *pyproject.toml* < *CLI arguments*.
 
     Only CLI values that were explicitly provided (not ``None``) override.
+
+    When ``[[tool.sphinx-source-tree.files]]`` entries are present the
+    returned dict contains a ``"files"`` key: a list of fully-resolved
+    per-file configs (each already merged with top-level pyproject defaults
+    and CLI overrides).
     """
     cfg = dict(defaults or DEFAULTS)
 
@@ -171,23 +189,35 @@ def resolve_config(
         else cfg.get("project_root", ".")
     ).resolve()
 
-    # Layer 2: pyproject.toml
-    file_cfg = load_config(project_root)
-    for key, val in file_cfg.items():
-        norm = key.replace("-", "_")
-        if norm != "project_root":
-            cfg[norm] = val
+    # Layer 2: pyproject.toml top-level (exclude "files" – handled below)
+    file_cfg = _normalise_keys(load_config(project_root))
+    per_file_entries: list[dict[str, Any]] = file_cfg.pop("files", [])
+    cfg.update({k: v for k, v in file_cfg.items() if k != "project_root"})
 
     # Layer 3: explicit CLI args
-    cfg.update(
-        {
-            k: v
-            for k, v in vars(cli_ns).items()
-            if v is not None and k != "project_root"
-        }
-    )
-
+    cli_overrides = {
+        k: v
+        for k, v in vars(cli_ns).items()
+        if v is not None and k != "project_root"
+    }
+    cfg.update(cli_overrides)
     cfg["project_root"] = str(project_root)
+
+    # Build per-file configs: DEFAULTS < top-level pyproject < per-file entry
+    # < CLI overrides
+    if per_file_entries:
+        resolved_files: list[dict[str, Any]] = []
+        for entry in per_file_entries:
+            entry = _normalise_keys(entry)
+            # Start from the already-merged top-level cfg (minus "files")
+            file_resolved = dict(cfg)
+            file_resolved.update(entry)
+            # CLI always wins last
+            file_resolved.update(cli_overrides)
+            file_resolved["project_root"] = str(project_root)
+            resolved_files.append(file_resolved)
+        cfg["files"] = resolved_files
+
     return cfg
 
 
@@ -452,6 +482,32 @@ def generate(
     return "\n".join(parts)
 
 
+def _generate_from_cfg(cfg: dict[str, Any]) -> str:
+    """Call ``generate()`` using a resolved config dict."""
+    return generate(
+        project_root=cfg["project_root"],
+        output=cfg.get("output", DEFAULTS["output"]),
+        depth=cfg.get("depth", DEFAULTS["depth"]),
+        extensions=cfg.get("extensions"),
+        ignore=cfg.get("ignore"),
+        whitelist=cfg.get("whitelist"),
+        include_all=cfg.get("include_all", DEFAULTS["include_all"]),
+        title=cfg.get("title", DEFAULTS["title"]),
+        linenos=cfg.get("linenos", DEFAULTS["linenos"]),
+        extra_languages=cfg.get("extra_languages"),
+    )
+
+
+def _write_output(content: str, out_path: Path) -> None:
+    """Write *content* to *out_path*, creating parent directories as needed."""
+    if not out_path.is_absolute():
+        out_path = Path.cwd() / out_path
+    out_path = out_path.resolve()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(content, encoding="utf-8")
+    print(f"Wrote {out_path}")
+
+
 # ----------------------------------------------------------------------------
 # CLI
 # ----------------------------------------------------------------------------
@@ -553,29 +609,30 @@ def main(argv: list[str] | None = None) -> None:
 
     cfg = resolve_config(args)
 
-    content = generate(
-        project_root=cfg["project_root"],
-        output=cfg.get("output", DEFAULTS["output"]),
-        depth=cfg.get("depth", DEFAULTS["depth"]),
-        extensions=cfg.get("extensions"),
-        ignore=cfg.get("ignore"),
-        whitelist=cfg.get("whitelist"),
-        include_all=cfg.get("include_all", DEFAULTS["include_all"]),
-        title=cfg.get("title", DEFAULTS["title"]),
-        linenos=cfg.get("linenos", DEFAULTS["linenos"]),
-        extra_languages=cfg.get("extra_languages"),
-    )
+    per_file_cfgs: list[dict[str, Any]] = cfg.get("files", [])
 
-    if stdout:
-        sys.stdout.write(content)
+    if per_file_cfgs:
+        # Multi-file mode: generate one RST per [[files]] entry.
+        # --stdout emits all files concatenated to stdout.
+        for file_cfg in per_file_cfgs:
+            content = _generate_from_cfg(file_cfg)
+            if stdout:
+                sys.stdout.write(content)
+            else:
+                _write_output(
+                    content,
+                    Path(file_cfg.get("output", DEFAULTS["output"])),
+                )
     else:
-        out_path = Path(cfg.get("output", DEFAULTS["output"]))
-        if not out_path.is_absolute():
-            out_path = Path.cwd() / out_path
-        out_path = out_path.resolve()
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        out_path.write_text(content, encoding="utf-8")
-        print(f"Wrote {out_path}")
+        # Single-file mode (original behaviour).
+        content = _generate_from_cfg(cfg)
+        if stdout:
+            sys.stdout.write(content)
+        else:
+            _write_output(
+                content,
+                Path(cfg.get("output", DEFAULTS["output"])),
+            )
 
 
 if __name__ == "__main__":
