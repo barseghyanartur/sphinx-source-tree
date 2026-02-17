@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sphinx-source-tree"
-version = "0.1"
+version = "0.2"
 description = "Ship entire project source code and directory tree with your Sphinx documentation"
 readme = "README.rst"
 license = "MIT"

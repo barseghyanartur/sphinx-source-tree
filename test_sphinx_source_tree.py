@@ -316,6 +316,30 @@ class TestLoadConfig:
         assert cfg["extensions"] == [".py", ".rs"]
         assert cfg["linenos"] is True
 
+    def test_reads_files_entries(self, tmp_path):
+        """``files`` key is returned as-is for resolve_config to process."""
+        (tmp_path / "pyproject.toml").write_text(
+            textwrap.dedent("""\
+                [tool.sphinx-source-tree]
+                depth = 4
+
+                [[tool.sphinx-source-tree.files]]
+                output = "docs/tree_a.rst"
+                title = "Tree A"
+
+                [[tool.sphinx-source-tree.files]]
+                output = "docs/tree_b.rst"
+                title = "Tree B"
+                extensions = [".py"]
+            """),
+            encoding="utf-8",
+        )
+        cfg = load_config(tmp_path)
+        assert cfg["depth"] == 4
+        assert len(cfg["files"]) == 2
+        assert cfg["files"][0]["title"] == "Tree A"
+        assert cfg["files"][1]["extensions"] == [".py"]
+
 
 # ----------------------------------------------------------------------------
 # resolve_config
@@ -372,6 +396,76 @@ class TestResolveConfig:
         cfg = resolve_config(args)
         assert cfg["include_all"] is True
         assert cfg["extra_languages"] == {".vue": "vue"}
+
+    def test_no_files_key_when_none_configured(self, tmp_path):
+        """When no [[files]] entries exist, 'files' should not be in cfg."""
+        parser = build_parser()
+        args = parser.parse_args(["--project-root", str(tmp_path)])
+        delattr(args, "stdout")
+        cfg = resolve_config(args)
+        assert "files" not in cfg
+
+    def test_files_inherit_top_level_defaults(self, tmp_path):
+        """Per-file entries should inherit top-level pyproject settings."""
+        (tmp_path / "pyproject.toml").write_text(
+            textwrap.dedent("""\
+                [tool.sphinx-source-tree]
+                depth = 4
+                linenos = true
+
+                [[tool.sphinx-source-tree.files]]
+                output = "docs/tree_a.rst"
+                title = "Tree A"
+
+                [[tool.sphinx-source-tree.files]]
+                output = "docs/tree_b.rst"
+                title = "Tree B"
+                depth = 2
+            """),
+            encoding="utf-8",
+        )
+        parser = build_parser()
+        args = parser.parse_args(["--project-root", str(tmp_path)])
+        delattr(args, "stdout")
+        cfg = resolve_config(args)
+
+        assert len(cfg["files"]) == 2
+
+        # Tree A inherits depth=4 and linenos=true from top-level
+        assert cfg["files"][0]["depth"] == 4
+        assert cfg["files"][0]["linenos"] is True
+        assert cfg["files"][0]["title"] == "Tree A"
+
+        # Tree B overrides depth but still inherits linenos
+        assert cfg["files"][1]["depth"] == 2
+        assert cfg["files"][1]["linenos"] is True
+        assert cfg["files"][1]["title"] == "Tree B"
+
+    def test_cli_overrides_all_file_entries(self, tmp_path):
+        """A CLI flag should override every per-file entry."""
+        (tmp_path / "pyproject.toml").write_text(
+            textwrap.dedent("""\
+                [tool.sphinx-source-tree]
+
+                [[tool.sphinx-source-tree.files]]
+                output = "docs/tree_a.rst"
+                depth = 3
+
+                [[tool.sphinx-source-tree.files]]
+                output = "docs/tree_b.rst"
+                depth = 5
+            """),
+            encoding="utf-8",
+        )
+        parser = build_parser()
+        args = parser.parse_args(
+            ["--project-root", str(tmp_path), "--depth", "9"]
+        )
+        delattr(args, "stdout")
+        cfg = resolve_config(args)
+
+        for file_cfg in cfg["files"]:
+            assert file_cfg["depth"] == 9
 
 
 # ----------------------------------------------------------------------------
@@ -430,3 +524,99 @@ class TestMain:
             ]
         )
         assert out.exists()
+
+    def test_multi_file_writes_multiple_outputs(self, sample_project):
+        """[[files]] entries each produce their own output file."""
+        (sample_project / "pyproject.toml").write_text(
+            textwrap.dedent(f"""\
+                [tool.sphinx-source-tree]
+                ignore = ["__pycache__", "*.pyc"]
+
+                [[tool.sphinx-source-tree.files]]
+                output = "{sample_project}/docs/tree_py.rst"
+                title = "Python Files"
+                extensions = [".py"]
+
+                [[tool.sphinx-source-tree.files]]
+                output = "{sample_project}/docs/tree_rst.rst"
+                title = "RST Files"
+                extensions = [".rst"]
+            """),
+            encoding="utf-8",
+        )
+        main(["--project-root", str(sample_project)])
+
+        py_out = sample_project / "docs" / "tree_py.rst"
+        rst_out = sample_project / "docs" / "tree_rst.rst"
+
+        assert py_out.exists()
+        assert rst_out.exists()
+
+        py_content = py_out.read_text(encoding="utf-8")
+        rst_content = rst_out.read_text(encoding="utf-8")
+
+        assert "Python Files" in py_content
+        assert ":language: python" in py_content
+        # .rst files should not appear in the py-only tree's literalincludes
+        assert ":language: rst" not in py_content
+
+        assert "RST Files" in rst_content
+        assert ":language: rst" in rst_content
+
+    def test_multi_file_stdout_mode(self, sample_project, capsys):
+        """--stdout with [[files]] concatenates all outputs."""
+        (sample_project / "pyproject.toml").write_text(
+            textwrap.dedent(f"""\
+                [tool.sphinx-source-tree]
+                ignore = ["__pycache__", "*.pyc"]
+
+                [[tool.sphinx-source-tree.files]]
+                output = "{sample_project}/docs/tree_a.rst"
+                title = "Alpha"
+                extensions = [".py"]
+
+                [[tool.sphinx-source-tree.files]]
+                output = "{sample_project}/docs/tree_b.rst"
+                title = "Beta"
+                extensions = [".md"]
+            """),
+            encoding="utf-8",
+        )
+        main(["--project-root", str(sample_project), "--stdout"])
+        captured = capsys.readouterr()
+        assert "Alpha" in captured.out
+        assert "Beta" in captured.out
+
+    def test_multi_file_cli_depth_overrides_all(self, sample_project):
+        """A CLI --depth flag overrides depth in every [[files]] entry."""
+        (sample_project / "pyproject.toml").write_text(
+            textwrap.dedent(f"""\
+                [tool.sphinx-source-tree]
+                ignore = ["__pycache__", "*.pyc"]
+
+                [[tool.sphinx-source-tree.files]]
+                output = "{sample_project}/docs/tree_a.rst"
+                extensions = [".py"]
+                depth = 3
+
+                [[tool.sphinx-source-tree.files]]
+                output = "{sample_project}/docs/tree_b.rst"
+                extensions = [".md"]
+                depth = 5
+            """),
+            encoding="utf-8",
+        )
+        # CLI depth=1 should win for both files; trees will be shallow
+        main(
+            [
+                "--project-root",
+                str(sample_project),
+                "--depth",
+                "1",
+            ]
+        )
+        for out in ("tree_a.rst", "tree_b.rst"):
+            content = (sample_project / "docs" / out).read_text(
+                encoding="utf-8"
+            )
+            assert "to 1 levels" in content
