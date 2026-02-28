@@ -24,6 +24,7 @@ are used for versioning (schema follows below):
   are shown in the documentation using ``lines``, ``start-after``,
   ``start-at``, ``end-before``, and ``end-at``.
   These can be configured in your pyproject.toml or via the Python API.
+- Test against Python 3.15.
 
 0.2
 ---
