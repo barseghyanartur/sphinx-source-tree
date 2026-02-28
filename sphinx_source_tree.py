@@ -85,6 +85,7 @@ DEFAULTS: dict[str, Any] = {
     "title": "Project source-tree",
     "linenos": False,
     "extra_languages": {},
+    "file_options": {},
 }
 
 LANGUAGE_MAP: dict[str, str] = {
@@ -136,6 +137,11 @@ LANGUAGE_MAP: dict[str, str] = {
     ".proto": "protobuf",
     ".makefile": "makefile",
 }
+
+# Valid per-file literalinclude options (subset that controls content range).
+VALID_FILE_OPTIONS: frozenset[str] = frozenset(
+    ["lines", "start-at", "start-after", "end-before", "end-at"]
+)
 
 
 # ── config ───────────────────────────────────────────────────────────
@@ -279,6 +285,29 @@ def _should_show_dir(rel_path: str, whitelist: list[str]) -> bool:
     return any(w.strip("/").startswith(rel_path + "/") for w in whitelist)
 
 
+def _validate_file_options(
+    options: dict[str, Any],
+    source: str = "",
+) -> dict[str, str]:
+    """Return only the recognised inclusion-range options, coerced to strings.
+
+    Unknown keys are silently dropped with a stderr warning.
+    """
+    validated: dict[str, str] = {}
+    for key, value in options.items():
+        normalised = key.replace("_", "-")
+        if normalised in VALID_FILE_OPTIONS:
+            validated[normalised] = str(value)
+        else:
+            label = f" for {source!r}" if source else ""
+            print(
+                f"Warning: unknown file option {key!r}{label} ignored. "
+                f"Valid options: {sorted(VALID_FILE_OPTIONS)}",
+                file=sys.stderr,
+            )
+    return validated
+
+
 # ----------------------------------------------------------------------------
 # Core API
 # ----------------------------------------------------------------------------
@@ -388,6 +417,7 @@ def generate(
     title: str = "Project source-tree",
     linenos: bool = False,
     extra_languages: dict[str, str] | None = None,
+    file_options: dict[str, dict[str, Any]] | None = None,
 ) -> str:
     """Build the full ``.rst`` document and return it as a string.
 
@@ -416,6 +446,22 @@ def generate(
     extra_languages:
         Additional ``{suffix: language}`` mappings merged on top of the
         built-in ``LANGUAGE_MAP``.
+    file_options:
+        Per-file ``literalinclude`` inclusion-range options.  Keys are
+        file paths relative to *project_root* (or absolute); values are
+        dicts with any subset of: ``lines``, ``start-at``,
+        ``start-after``, ``end-before``, ``end-at``.  Example::
+
+            {
+                "src/app.py": {"end-before": "# ===== Tests ====="},
+                "src/utils.py": {"lines": "1-40"},
+            }
+
+        In ``pyproject.toml``::
+
+            [tool.sphinx-source-tree.file-options]
+            "src/app.py" = {"end-before" = "# ===== Tests ====="}
+            "src/utils.py" = {"lines" = "1-40"}
     """
     root = Path(project_root).resolve()
     output_dir = Path(output).resolve().parent
@@ -426,6 +472,19 @@ def generate(
     _whitelist = (
         whitelist if whitelist is not None else list(DEFAULTS["whitelist"])
     )
+
+    # Normalise file_options keys to relative-posix strings
+    _file_options: dict[str, dict[str, str]] = {}
+    for key, opts in (file_options or {}).items():
+        key_path = Path(key)
+        if key_path.is_absolute():
+            try:
+                rel_key = key_path.relative_to(root).as_posix()
+            except ValueError:
+                rel_key = key_path.as_posix()
+        else:
+            rel_key = Path(key).as_posix()
+        _file_options[rel_key] = _validate_file_options(opts, source=key)
 
     underline = "=" * len(title)
     header = (
@@ -476,6 +535,9 @@ def generate(
         block.append(f"   :caption: {rel}")
         if linenos:
             block.append("   :linenos:")
+        # Append any per-file inclusion-range options
+        for opt_key, opt_val in _file_options.get(rel, {}).items():
+            block.append(f"   :{opt_key}: {opt_val}")
         block.append("")
         parts.extend(block)
 
@@ -495,6 +557,7 @@ def _generate_from_cfg(cfg: dict[str, Any]) -> str:
         title=cfg.get("title", DEFAULTS["title"]),
         linenos=cfg.get("linenos", DEFAULTS["linenos"]),
         extra_languages=cfg.get("extra_languages"),
+        file_options=cfg.get("file_options"),
     )
 
 

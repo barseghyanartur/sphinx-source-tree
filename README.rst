@@ -8,6 +8,7 @@ documentation.
 
 .. _Sphinx: https://www.sphinx-doc.org/
 .. _reStructuredText: https://docutils.sourceforge.io/rst.html
+.. _literalinclude-directive: https://www.sphinx-doc.org/en/master/usage/restructuredtext/directives.html#directive-literalinclude
 
 .. Internal references
 
@@ -193,6 +194,27 @@ The merge priority is: **built-in defaults** < **top-level
 
 When no ``[[files]]`` entries are present the tool behaves exactly as
 before, so existing configurations are fully backward compatible.
+
+Per-file configuration options
+------------------------------
+These are configuration markers of `literalinclude-directive`_.
+
+The following options are supported:
+
+- ``:lines:``
+- ``:start-at:``
+- ``:start-after:``
+- ``:end-before:``
+- ``:end-at:``
+
+See the example below:
+
+.. code-block:: toml
+
+    [tool.sphinx-source-tree.file-options]
+    "src/app.py" = {"end-before" = "# END PUBLIC API"}
+    "src/utils.py" = {"lines" = "1-40"}
+    "src/models.py" = {"start-after" = "# START PUBLIC API"}
 
 Python API
 ----------
