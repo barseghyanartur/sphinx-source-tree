@@ -23,6 +23,7 @@ __all__ = (
     "TestBuildTree",
     "TestCollectFiles",
     "TestDetectLanguage",
+    "TestFileOptions",
     "TestGenerate",
     "TestLoadConfig",
     "TestLoadConfig",
@@ -620,3 +621,268 @@ class TestMain:
                 encoding="utf-8"
             )
             assert "to 1 levels" in content
+
+
+# ----------------------------------------------------------------------------
+# file_options
+# ----------------------------------------------------------------------------
+
+
+class TestFileOptions:
+    """Tests for per-file literalinclude inclusion-range options."""
+
+    # -- _validate_file_options ----------------------------------------------
+
+    def test_validate_accepts_all_valid_options(self):
+        from sphinx_source_tree import _validate_file_options
+
+        opts = _validate_file_options(
+            {
+                "lines": "1-10",
+                "start-at": "def foo",
+                "start-after": "# begin",
+                "end-before": "# end",
+                "end-at": "return",
+            }
+        )
+        assert opts == {
+            "lines": "1-10",
+            "start-at": "def foo",
+            "start-after": "# begin",
+            "end-before": "# end",
+            "end-at": "return",
+        }
+
+    def test_validate_normalises_underscores_to_hyphens(self):
+        from sphinx_source_tree import _validate_file_options
+
+        opts = _validate_file_options(
+            {
+                "end_before": "# Tests",
+                "start_after": "# begin",
+                "start_at": "class Foo",
+                "end_at": "pass",
+            }
+        )
+        assert "end-before" in opts
+        assert "start-after" in opts
+        assert "start-at" in opts
+        assert "end-at" in opts
+        assert "end_before" not in opts
+
+    def test_validate_drops_unknown_keys_with_warning(self, capsys):
+        from sphinx_source_tree import _validate_file_options
+
+        opts = _validate_file_options(
+            {"end-before": "# stop", "bad-option": "x", "another-bad": "y"},
+            source="src/foo.py",
+        )
+        assert "end-before" in opts
+        assert "bad-option" not in opts
+        assert "another-bad" not in opts
+
+        err = capsys.readouterr().err
+        assert "bad-option" in err
+        assert "another-bad" in err
+        assert "src/foo.py" in err
+
+    def test_validate_coerces_values_to_strings(self):
+        from sphinx_source_tree import _validate_file_options
+
+        # ``lines`` might come from TOML as an integer or a string
+        opts = _validate_file_options({"lines": 42})
+        assert opts["lines"] == "42"
+
+    def test_validate_empty_input_returns_empty(self):
+        from sphinx_source_tree import _validate_file_options
+
+        assert _validate_file_options({}) == {}
+
+    # -- generate() with file_options ----------------------------------------
+
+    def test_end_before_emitted_for_matched_file(self, sample_project):
+        rst = generate(
+            project_root=sample_project,
+            output=sample_project / "docs" / "out.rst",
+            extensions=[".py"],
+            ignore=["__pycache__", "*.pyc"],
+            file_options={"src/app.py": {"end-before": "# *** Tests ***"}},
+        )
+        assert ":end-before: # *** Tests ***" in rst
+
+    def test_start_after_emitted_for_matched_file(self, sample_project):
+        rst = generate(
+            project_root=sample_project,
+            output=sample_project / "docs" / "out.rst",
+            extensions=[".py"],
+            ignore=["__pycache__", "*.pyc"],
+            file_options={"src/app.py": {"start-after": "# public API"}},
+        )
+        assert ":start-after: # public API" in rst
+
+    def test_start_at_emitted_for_matched_file(self, sample_project):
+        rst = generate(
+            project_root=sample_project,
+            output=sample_project / "docs" / "out.rst",
+            extensions=[".py"],
+            ignore=["__pycache__", "*.pyc"],
+            file_options={"src/app.py": {"start-at": "def main"}},
+        )
+        assert ":start-at: def main" in rst
+
+    def test_end_at_emitted_for_matched_file(self, sample_project):
+        rst = generate(
+            project_root=sample_project,
+            output=sample_project / "docs" / "out.rst",
+            extensions=[".py"],
+            ignore=["__pycache__", "*.pyc"],
+            file_options={"src/app.py": {"end-at": "return result"}},
+        )
+        assert ":end-at: return result" in rst
+
+    def test_lines_emitted_for_matched_file(self, sample_project):
+        rst = generate(
+            project_root=sample_project,
+            output=sample_project / "docs" / "out.rst",
+            extensions=[".py"],
+            ignore=["__pycache__", "*.pyc"],
+            file_options={"src/app.py": {"lines": "1-20"}},
+        )
+        assert ":lines: 1-20" in rst
+
+    def test_multiple_options_all_emitted(self, sample_project):
+        rst = generate(
+            project_root=sample_project,
+            output=sample_project / "docs" / "out.rst",
+            extensions=[".py"],
+            ignore=["__pycache__", "*.pyc"],
+            file_options={
+                "src/app.py": {
+                    "start-after": "# begin",
+                    "end-before": "# end",
+                }
+            },
+        )
+        assert ":start-after: # begin" in rst
+        assert ":end-before: # end" in rst
+
+    def test_options_not_emitted_for_unmatched_file(self, sample_project):
+        rst = generate(
+            project_root=sample_project,
+            output=sample_project / "docs" / "out.rst",
+            extensions=[".py"],
+            ignore=["__pycache__", "*.pyc"],
+            file_options={"src/app.py": {"end-before": "# stop"}},
+        )
+        # Locate the utils.py literalinclude block and check it has no options
+        lines = rst.splitlines()
+        utils_idx = next(
+            i
+            for i, ln in enumerate(lines)
+            if "literalinclude" in ln and "utils.py" in ln
+        )
+        block = lines[utils_idx : utils_idx + 10]
+        assert not any(":end-before:" in ln for ln in block)
+
+    def test_options_placed_after_caption_and_linenos(self, sample_project):
+        """Inclusion-range options must come after :caption: / :linenos:."""
+        rst = generate(
+            project_root=sample_project,
+            output=sample_project / "docs" / "out.rst",
+            extensions=[".py"],
+            ignore=["__pycache__", "*.pyc"],
+            linenos=True,
+            file_options={"src/app.py": {"end-before": "# stop"}},
+        )
+        lines = rst.splitlines()
+        # Find the src/app.py block specifically, then check ordering within it
+        caption_idx = next(
+            i for i, ln in enumerate(lines) if ":caption: src/app.py" in ln
+        )
+        # :linenos: and :end-before: must both appear after the caption line
+        block = lines[caption_idx:]
+        linenos_pos = next(i for i, ln in enumerate(block) if ":linenos:" in ln)
+        end_before_pos = next(
+            i for i, ln in enumerate(block) if ":end-before:" in ln
+        )
+        assert linenos_pos < end_before_pos
+
+    def test_absolute_path_key_resolved(self, sample_project):
+        """An absolute path key should be matched to the correct file."""
+        abs_path = str(sample_project / "src" / "app.py")
+        rst = generate(
+            project_root=sample_project,
+            output=sample_project / "docs" / "out.rst",
+            extensions=[".py"],
+            ignore=["__pycache__", "*.pyc"],
+            file_options={abs_path: {"end-before": "# Tests"}},
+        )
+        assert ":end-before: # Tests" in rst
+
+    def test_underscore_option_key_works(self, sample_project):
+        """Keys written with underscores (TOML style) should be normalised."""
+        rst = generate(
+            project_root=sample_project,
+            output=sample_project / "docs" / "out.rst",
+            extensions=[".py"],
+            ignore=["__pycache__", "*.pyc"],
+            file_options={"src/app.py": {"end_before": "# Tests"}},
+        )
+        assert ":end-before: # Tests" in rst
+
+    def test_no_file_options_produces_clean_output(self, sample_project):
+        """When file_options is omitted the output should be unchanged."""
+        rst_without = generate(
+            project_root=sample_project,
+            output=sample_project / "docs" / "out.rst",
+            extensions=[".py"],
+            ignore=["__pycache__", "*.pyc"],
+        )
+        rst_with_empty = generate(
+            project_root=sample_project,
+            output=sample_project / "docs" / "out.rst",
+            extensions=[".py"],
+            ignore=["__pycache__", "*.pyc"],
+            file_options={},
+        )
+        assert rst_without == rst_with_empty
+        assert ":end-before:" not in rst_without
+        assert ":start-after:" not in rst_without
+
+    # -- pyproject.toml integration ------------------------------------------
+
+    def test_file_options_loaded_from_pyproject(self, sample_project):
+        """file-options table in pyproject.toml should drive the output."""
+        (sample_project / "pyproject.toml").write_text(
+            textwrap.dedent("""\
+                [tool.sphinx-source-tree]
+                ignore = ["__pycache__", "*.pyc"]
+
+                [tool.sphinx-source-tree.file-options]
+                "src/app.py" = {"end-before" = "# *** Tests ***"}
+            """),
+            encoding="utf-8",
+        )
+        out = sample_project / "docs" / "out.rst"
+        main(["--project-root", str(sample_project), "--output", str(out)])
+        content = out.read_text(encoding="utf-8")
+        assert ":end-before: # *** Tests ***" in content
+
+    def test_file_options_multiple_files_in_pyproject(self, sample_project):
+        """Multiple entries under file-options should each be applied."""
+        (sample_project / "pyproject.toml").write_text(
+            textwrap.dedent("""\
+                [tool.sphinx-source-tree]
+                ignore = ["__pycache__", "*.pyc"]
+
+                [tool.sphinx-source-tree.file-options]
+                "src/app.py" = {"end-before" = "# stop app"}
+                "src/utils.py" = {"start-after" = "# public"}
+            """),
+            encoding="utf-8",
+        )
+        out = sample_project / "docs" / "out.rst"
+        main(["--project-root", str(sample_project), "--output", str(out)])
+        content = out.read_text(encoding="utf-8")
+        assert ":end-before: # stop app" in content
+        assert ":start-after: # public" in content

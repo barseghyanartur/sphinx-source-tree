@@ -16,6 +16,16 @@ are used for versioning (schema follows below):
   0.3.4 to 0.4).
 - All backwards incompatible changes are mentioned in this document.
 
+0.2.1
+-----
+2026-02-28
+
+- Added per-file inclusion options: You can now limit which parts of a file
+  are shown in the documentation using ``lines``, ``start-after``,
+  ``start-at``, ``end-before``, and ``end-at``.
+  These can be configured in your pyproject.toml or via the Python API.
+- Test against Python 3.15.
+
 0.2
 ---
 2026-02-17

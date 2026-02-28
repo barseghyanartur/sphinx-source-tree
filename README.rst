@@ -8,6 +8,7 @@ documentation.
 
 .. _Sphinx: https://www.sphinx-doc.org/
 .. _reStructuredText: https://docutils.sourceforge.io/rst.html
+.. _Sphinx literalinclude range options: https://www.sphinx-doc.org/en/master/usage/restructuredtext/directives.html#directive-literalinclude
 
 .. Internal references
 
@@ -193,6 +194,69 @@ The merge priority is: **built-in defaults** < **top-level
 
 When no ``[[files]]`` entries are present the tool behaves exactly as
 before, so existing configurations are fully backward compatible.
+
+Per-file inclusion options
+--------------------------
+
+You can restrict how much of each file is shown by attaching
+`Sphinx literalinclude range options`_ to individual files.  The
+following options are supported:
+
+* ``:lines:`` — explicit line numbers or ranges (e.g. ``1-20, 30``)
+* ``:start-at:`` — include from the first line that contains the marker
+* ``:start-after:`` — include from the line *after* the marker
+* ``:end-before:`` — include up to, but not including, the marker line
+* ``:end-at:`` — include up to and including the marker line
+
+**Via** ``pyproject.toml``
+
+Add a ``[tool.sphinx-source-tree.file-options]`` table whose keys are
+file paths relative to the project root:
+
+.. code-block:: toml
+
+   [tool.sphinx-source-tree.file-options]
+   "src/app.py" = {"end-before" = "# *** Tests ***"}
+   "src/utils.py" = {"start-after" = "# -- public API --"}
+   "src/models.py" = {"lines" = "1-60"}
+
+This produces ``literalinclude`` blocks such as:
+
+.. code-block:: rst
+
+   .. literalinclude:: ../src/app.py
+      :language: python
+      :caption: src/app.py
+      :end-before: # *** Tests ***
+
+Option keys may be written with either hyphens (``end-before``) or
+underscores (``end_before``); both are accepted and normalised to the
+hyphenated form that Sphinx expects.  Unknown option keys are rejected
+with a warning printed to stderr.
+
+**Via the Python API**
+
+Pass the ``file_options`` keyword argument to ``generate()``:
+
+.. pytestfixture: safe_test_path
+.. code-block:: python
+    :name: test_python_api_file_options
+
+    from pathlib import Path
+    from sphinx_source_tree import generate
+
+    rst = generate(
+        project_root=Path("."),
+        output=Path("docs/source_tree2.rst"),
+        file_options={
+            "src/app.py": {"end-before": "# *** Tests ***"},
+            "src/utils.py": {"start-after": "# -- public API --"},
+            "src/models.py": {"lines": "1-60"},
+        },
+    )
+
+Absolute paths are also accepted as keys and are resolved relative to
+``project_root`` automatically.
 
 Python API
 ----------
