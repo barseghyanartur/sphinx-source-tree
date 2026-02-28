@@ -238,20 +238,22 @@ with a warning printed to stderr.
 
 Pass the ``file_options`` keyword argument to ``generate()``:
 
+.. pytestfixture: safe_test_path
 .. code-block:: python
+    :name: test_python_api_file_options
 
-   from pathlib import Path
-   from sphinx_source_tree import generate
+    from pathlib import Path
+    from sphinx_source_tree import generate
 
-   rst = generate(
-       project_root=Path("."),
-       output=Path("docs/source_tree.rst"),
-       file_options={
-           "src/app.py":   {"end-before":  "# *** Tests ***"},
-           "src/utils.py": {"start-after": "# -- public API --"},
-           "src/models.py" = {"lines" = "1-60"},
-       },
-   )
+    rst = generate(
+        project_root=Path("."),
+        output=Path("docs/source_tree.rst"),
+        file_options={
+            "src/app.py":   {"end-before":  "# *** Tests ***"},
+            "src/utils.py": {"start-after": "# -- public API --"},
+            "src/models.py" = {"lines" = "1-60"},
+        },
+    )
 
 Absolute paths are also accepted as keys and are resolved relative to
 ``project_root`` automatically.
