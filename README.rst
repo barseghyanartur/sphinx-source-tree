@@ -8,7 +8,7 @@ documentation.
 
 .. _Sphinx: https://www.sphinx-doc.org/
 .. _reStructuredText: https://docutils.sourceforge.io/rst.html
-.. _literalinclude-directive: https://www.sphinx-doc.org/en/master/usage/restructuredtext/directives.html#directive-literalinclude
+.. _Sphinx literalinclude range options: https://www.sphinx-doc.org/en/master/usage/restructuredtext/directives.html#directive-literalinclude
 
 .. Internal references
 
@@ -195,26 +195,66 @@ The merge priority is: **built-in defaults** < **top-level
 When no ``[[files]]`` entries are present the tool behaves exactly as
 before, so existing configurations are fully backward compatible.
 
-Per-file configuration options
-------------------------------
-These are configuration markers of `literalinclude-directive`_.
+Per-file inclusion options
+--------------------------
 
-The following options are supported:
+You can restrict how much of each file is shown by attaching
+`Sphinx literalinclude range options`_ to individual files.  The
+following options are supported:
 
-- ``:lines:``
-- ``:start-at:``
-- ``:start-after:``
-- ``:end-before:``
-- ``:end-at:``
+* ``:lines:`` — explicit line numbers or ranges (e.g. ``1-20, 30``)
+* ``:start-at:`` — include from the first line that contains the marker
+* ``:start-after:`` — include from the line *after* the marker
+* ``:end-before:`` — include up to, but not including, the marker line
+* ``:end-at:`` — include up to and including the marker line
 
-See the example below:
+**Via** ``pyproject.toml``
+
+Add a ``[tool.sphinx-source-tree.file-options]`` table whose keys are
+file paths relative to the project root:
 
 .. code-block:: toml
 
-    [tool.sphinx-source-tree.file-options]
-    "src/app.py" = {"end-before" = "# END PUBLIC API"}
-    "src/utils.py" = {"lines" = "1-40"}
-    "src/models.py" = {"start-after" = "# START PUBLIC API"}
+   [tool.sphinx-source-tree.file-options]
+   "src/app.py"   = {"end-before"   = "# *** Tests ***"}
+   "src/utils.py" = {"start-after"  = "# -- public API --"}
+   "src/models.py" = {"lines" = "1-60"}
+
+This produces ``literalinclude`` blocks such as:
+
+.. code-block:: rst
+
+   .. literalinclude:: ../src/app.py
+      :language: python
+      :caption: src/app.py
+      :end-before: # *** Tests ***
+
+Option keys may be written with either hyphens (``end-before``) or
+underscores (``end_before``); both are accepted and normalised to the
+hyphenated form that Sphinx expects.  Unknown option keys are rejected
+with a warning printed to stderr.
+
+**Via the Python API**
+
+Pass the ``file_options`` keyword argument to ``generate()``:
+
+.. code-block:: python
+
+   from pathlib import Path
+   from sphinx_source_tree import generate
+
+   rst = generate(
+       project_root=Path("."),
+       output=Path("docs/source_tree.rst"),
+       file_options={
+           "src/app.py":   {"end-before":  "# *** Tests ***"},
+           "src/utils.py": {"start-after": "# -- public API --"},
+           "src/models.py" = {"lines" = "1-60"},
+       },
+   )
+
+Absolute paths are also accepted as keys and are resolved relative to
+``project_root`` automatically.
 
 Python API
 ----------
