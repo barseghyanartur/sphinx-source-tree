@@ -216,9 +216,9 @@ file paths relative to the project root:
 .. code-block:: toml
 
    [tool.sphinx-source-tree.file-options]
-   "src/app.py" = {"end-before"   = "# *** Tests ***"}
-   "src/utils.py" = {"start-after"  = "# -- public API --"}
-   "src/models.py" = {"lines" = "1-60"}
+   "src/app.py" = {"end-before": "# *** Tests ***"}
+   "src/utils.py" = {"start-after": "# -- public API --"}
+   "src/models.py" = {"lines": "1-60"}
 
 This produces ``literalinclude`` blocks such as:
 
@@ -249,9 +249,9 @@ Pass the ``file_options`` keyword argument to ``generate()``:
         project_root=Path("."),
         output=Path("docs/source_tree2.rst"),
         file_options={
-            "src/app.py": {"end-before":  "# *** Tests ***"},
+            "src/app.py": {"end-before": "# *** Tests ***"},
             "src/utils.py": {"start-after": "# -- public API --"},
-            "src/models.py": {"lines" = "1-60"},
+            "src/models.py": {"lines": "1-60"},
         },
     )
 
