@@ -631,7 +631,7 @@ class TestMain:
 class TestFileOptions:
     """Tests for per-file literalinclude inclusion-range options."""
 
-    # ── _validate_file_options ────────────────────────────────────────
+    # -- _validate_file_options ----------------------------------------------
 
     def test_validate_accepts_all_valid_options(self):
         from sphinx_source_tree import _validate_file_options
@@ -698,7 +698,7 @@ class TestFileOptions:
 
         assert _validate_file_options({}) == {}
 
-    # ── generate() with file_options ─────────────────────────────────
+    # -- generate() with file_options ----------------------------------------
 
     def test_end_before_emitted_for_matched_file(self, sample_project):
         rst = generate(
@@ -849,7 +849,7 @@ class TestFileOptions:
         assert ":end-before:" not in rst_without
         assert ":start-after:" not in rst_without
 
-    # ── pyproject.toml integration ────────────────────────────────────
+    # -- pyproject.toml integration ------------------------------------------
 
     def test_file_options_loaded_from_pyproject(self, sample_project):
         """file-options table in pyproject.toml should drive the output."""

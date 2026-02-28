@@ -216,9 +216,9 @@ file paths relative to the project root:
 .. code-block:: toml
 
    [tool.sphinx-source-tree.file-options]
-   "src/app.py" = {"end-before": "# *** Tests ***"}
-   "src/utils.py" = {"start-after": "# -- public API --"}
-   "src/models.py" = {"lines": "1-60"}
+   "src/app.py" = {"end-before" = "# *** Tests ***"}
+   "src/utils.py" = {"start-after" = "# -- public API --"}
+   "src/models.py" = {"lines" = "1-60"}
 
 This produces ``literalinclude`` blocks such as:
 
