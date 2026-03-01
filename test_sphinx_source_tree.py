@@ -886,3 +886,229 @@ class TestFileOptions:
         content = out.read_text(encoding="utf-8")
         assert ":end-before: # stop app" in content
         assert ":start-after: # public" in content
+
+
+# ----------------------------------------------------------------------------
+# _resolve_file_options_profile
+# ----------------------------------------------------------------------------
+
+
+class TestResolveFileOptionsProfile:
+    """Tests for the profile-selection helper."""
+
+    def test_no_profile_returns_file_options(self):
+        from sphinx_source_tree import _resolve_file_options_profile
+
+        cfg = {
+            "file_options": {"src/app.py": {"end-before": "# stop"}},
+            "file_options_profiles": {},
+            "file_options_profile": None,
+        }
+        assert _resolve_file_options_profile(cfg) == {
+            "src/app.py": {"end-before": "# stop"}
+        }
+
+    def test_named_profile_returned_when_found(self):
+        from sphinx_source_tree import _resolve_file_options_profile
+
+        cfg = {
+            "file_options": {"src/app.py": {"end-before": "# top-level"}},
+            "file_options_profiles": {
+                "compact": {"src/app.py": {"end-before": "# compact"}},
+                "full": {},
+            },
+            "file_options_profile": "compact",
+        }
+        assert _resolve_file_options_profile(cfg) == {
+            "src/app.py": {"end-before": "# compact"}
+        }
+
+    def test_full_profile_returns_empty_mapping(self):
+        from sphinx_source_tree import _resolve_file_options_profile
+
+        cfg = {
+            "file_options": {"src/app.py": {"end-before": "# stop"}},
+            "file_options_profiles": {
+                "compact": {"src/app.py": {"end-before": "# stop"}},
+                "full": {},
+            },
+            "file_options_profile": "full",
+        }
+        assert _resolve_file_options_profile(cfg) == {}
+
+    def test_missing_profile_warns_and_falls_back(self, capsys):
+        from sphinx_source_tree import _resolve_file_options_profile
+
+        cfg = {
+            "file_options": {"src/app.py": {"end-before": "# stop"}},
+            "file_options_profiles": {"compact": {}},
+            "file_options_profile": "nonexistent",
+        }
+        result = _resolve_file_options_profile(cfg)
+        assert result == {"src/app.py": {"end-before": "# stop"}}
+        err = capsys.readouterr().err
+        assert "nonexistent" in err
+        assert "compact" in err
+
+    def test_missing_profile_warning_lists_available_profiles(self, capsys):
+        from sphinx_source_tree import _resolve_file_options_profile
+
+        cfg = {
+            "file_options": {},
+            "file_options_profiles": {"alpha": {}, "beta": {}, "gamma": {}},
+            "file_options_profile": "delta",
+        }
+        _resolve_file_options_profile(cfg)
+        err = capsys.readouterr().err
+        assert "alpha" in err
+        assert "beta" in err
+        assert "gamma" in err
+
+    def test_no_profiles_key_falls_back_to_file_options(self):
+        from sphinx_source_tree import _resolve_file_options_profile
+
+        # cfg coming from old config that never had profiles
+        cfg = {
+            "file_options": {"src/app.py": {"lines": "1-10"}},
+            "file_options_profile": None,
+        }
+        assert _resolve_file_options_profile(cfg) == {
+            "src/app.py": {"lines": "1-10"}
+        }
+
+    def test_profile_none_with_no_file_options_returns_empty(self):
+        from sphinx_source_tree import _resolve_file_options_profile
+
+        cfg = {
+            "file_options_profiles": {},
+            "file_options_profile": None,
+        }
+        assert _resolve_file_options_profile(cfg) == {}
+
+    # -- integration via [[files]] + pyproject.toml ---------------------------
+
+    def test_each_file_entry_can_select_different_profile(self, sample_project):
+        """Two [[files]] entries selecting different profiles produce
+        different output."""
+        (sample_project / "pyproject.toml").write_text(
+            textwrap.dedent(f"""\
+                [tool.sphinx-source-tree]
+                ignore = ["__pycache__", "*.pyc"]
+
+                [tool.sphinx-source-tree.file-options-profiles.compact]
+                "src/app.py" = {{"end-before" = "# stop"}}
+
+                [tool.sphinx-source-tree.file-options-profiles.full]
+
+                [[tool.sphinx-source-tree.files]]
+                output = "{sample_project}/docs/full.rst"
+                title = "Full"
+                extensions = [".py"]
+                file-options-profile = "full"
+
+                [[tool.sphinx-source-tree.files]]
+                output = "{sample_project}/docs/compact.rst"
+                title = "Compact"
+                extensions = [".py"]
+                file-options-profile = "compact"
+            """),
+            encoding="utf-8",
+        )
+        main(["--project-root", str(sample_project)])
+
+        full = (sample_project / "docs" / "full.rst").read_text(
+            encoding="utf-8"
+        )
+        compact = (sample_project / "docs" / "compact.rst").read_text(
+            encoding="utf-8"
+        )
+
+        assert ":end-before:" not in full
+        assert ":end-before: # stop" in compact
+
+    def test_top_level_file_options_used_when_no_profile_set(
+        self, sample_project
+    ):
+        """When no file-options-profile is set the flat file-options table
+        applies, even in multi-file mode."""
+        (sample_project / "pyproject.toml").write_text(
+            textwrap.dedent(f"""\
+                [tool.sphinx-source-tree]
+                ignore = ["__pycache__", "*.pyc"]
+
+                [tool.sphinx-source-tree.file-options]
+                "src/app.py" = {{"end-before" = "# stop"}}
+
+                [[tool.sphinx-source-tree.files]]
+                output = "{sample_project}/docs/out.rst"
+                title = "All files"
+                extensions = [".py"]
+            """),
+            encoding="utf-8",
+        )
+        main(["--project-root", str(sample_project)])
+        content = (sample_project / "docs" / "out.rst").read_text(
+            encoding="utf-8"
+        )
+        assert ":end-before: # stop" in content
+
+    def test_missing_profile_in_files_entry_warns_and_uses_fallback(
+        self, sample_project, capsys
+    ):
+        """A [[files]] entry referencing an undefined profile should warn
+        and fall back to the top-level file-options."""
+        (sample_project / "pyproject.toml").write_text(
+            textwrap.dedent(f"""\
+                [tool.sphinx-source-tree]
+                ignore = ["__pycache__", "*.pyc"]
+
+                [tool.sphinx-source-tree.file-options]
+                "src/app.py" = {{"end-before" = "# fallback stop"}}
+
+                [tool.sphinx-source-tree.file-options-profiles.compact]
+                "src/app.py" = {{"end-before" = "# compact stop"}}
+
+                [[tool.sphinx-source-tree.files]]
+                output = "{sample_project}/docs/out.rst"
+                title = "Oops"
+                extensions = [".py"]
+                file-options-profile = "typo-profile"
+            """),
+            encoding="utf-8",
+        )
+        main(["--project-root", str(sample_project)])
+        err = capsys.readouterr().err
+        assert "typo-profile" in err
+        content = (sample_project / "docs" / "out.rst").read_text(
+            encoding="utf-8"
+        )
+        assert ":end-before: # fallback stop" in content
+
+    def test_profile_overrides_top_level_file_options(self, sample_project):
+        """When a profile is active it completely replaces file_options —
+        the top-level flat mapping is NOT merged in."""
+        (sample_project / "pyproject.toml").write_text(
+            textwrap.dedent(f"""\
+                [tool.sphinx-source-tree]
+                ignore = ["__pycache__", "*.pyc"]
+
+                [tool.sphinx-source-tree.file-options]
+                "src/app.py" = {{"end-before" = "# top-level stop"}}
+
+                [tool.sphinx-source-tree.file-options-profiles.compact]
+                "src/app.py" = {{"end-before" = "# compact stop"}}
+
+                [[tool.sphinx-source-tree.files]]
+                output = "{sample_project}/docs/out.rst"
+                title = "Compact"
+                extensions = [".py"]
+                file-options-profile = "compact"
+            """),
+            encoding="utf-8",
+        )
+        main(["--project-root", str(sample_project)])
+        content = (sample_project / "docs" / "out.rst").read_text(
+            encoding="utf-8"
+        )
+        assert ":end-before: # compact stop" in content
+        assert ":end-before: # top-level stop" not in content
