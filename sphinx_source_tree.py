@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any
 
 __title__ = "sphinx-source-tree"
-__version__ = "0.2.1"
+__version__ = "0.2.2"
 __author__ = "Artur Barseghyan <artur.barseghyan@gmail.com>"
 __copyright__ = "2026 Artur Barseghyan"
 __license__ = "MIT"
@@ -86,6 +86,8 @@ DEFAULTS: dict[str, Any] = {
     "linenos": False,
     "extra_languages": {},
     "file_options": {},
+    "file_options_profiles": {},
+    "file_options_profile": None,
 }
 
 LANGUAGE_MAP: dict[str, str] = {
@@ -308,6 +310,33 @@ def _validate_file_options(
     return validated
 
 
+def _resolve_file_options_profile(cfg: dict[str, Any]) -> dict[str, Any]:
+    """Return the effective ``file_options`` dict for *cfg*.
+
+    Resolution order:
+    1. If ``file_options_profile`` names a key in ``file_options_profiles``,
+       use that profile's mapping.
+    2. If ``file_options_profile`` is set but the name is not found in
+       ``file_options_profiles``, emit a warning and fall back to step 3.
+    3. Use ``file_options`` directly (the default / top-level flat mapping).
+    """
+    profiles: dict[str, Any] = cfg.get("file_options_profiles") or {}
+    profile_name: str | None = cfg.get("file_options_profile")
+
+    if profile_name is not None:
+        if profile_name in profiles:
+            return profiles[profile_name]
+        print(
+            f"Warning: file-options-profile {profile_name!r} not found in "
+            f"file-options-profiles. "
+            f"Available profiles: {sorted(profiles) or '(none)'}. "
+            f"Falling back to top-level file-options.",
+            file=sys.stderr,
+        )
+
+    return cfg.get("file_options") or {}
+
+
 # ----------------------------------------------------------------------------
 # Core API
 # ----------------------------------------------------------------------------
@@ -457,11 +486,18 @@ def generate(
                 "src/utils.py": {"lines": "1-40"},
             }
 
-        In ``pyproject.toml``::
+        In ``pyproject.toml`` (top-level, or as the default profile)::
 
             [tool.sphinx-source-tree.file-options]
             "src/app.py" = {"end-before" = "# ===== Tests ====="}
             "src/utils.py" = {"lines" = "1-40"}
+
+        Named profiles are defined under
+        ``[tool.sphinx-source-tree.file-options-profiles.<name>]`` and
+        selected per output file via ``file-options-profile``.  When
+        called directly the *file_options* argument already contains the
+        resolved (profile-selected) mapping; profile resolution happens
+        in ``_generate_from_cfg``.
     """
     root = Path(project_root).resolve()
     output_dir = Path(output).resolve().parent
@@ -557,7 +593,7 @@ def _generate_from_cfg(cfg: dict[str, Any]) -> str:
         title=cfg.get("title", DEFAULTS["title"]),
         linenos=cfg.get("linenos", DEFAULTS["linenos"]),
         extra_languages=cfg.get("extra_languages"),
-        file_options=cfg.get("file_options"),
+        file_options=_resolve_file_options_profile(cfg),
     )
 
 

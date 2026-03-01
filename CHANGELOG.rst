@@ -16,6 +16,16 @@ are used for versioning (schema follows below):
   0.3.4 to 0.4).
 - All backwards incompatible changes are mentioned in this document.
 
+0.2.2
+-----
+2026-03-01
+
+- Added named profiles (``[tool.sphinx-source-tree.file-options-profiles]``)
+  allowing different inclusion rules per output file. Each
+  ``[[tool.sphinx-source-tree.files]]`` entry can select a profile via
+  ``file-options-profile``; unrecognised profile names fall back to the
+  top-level ``file-options`` table with a stderr warning.
+
 0.2.1
 -----
 2026-02-28

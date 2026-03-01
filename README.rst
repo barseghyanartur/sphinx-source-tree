@@ -208,10 +208,11 @@ following options are supported:
 * ``:end-before:`` — include up to, but not including, the marker line
 * ``:end-at:`` — include up to and including the marker line
 
-**Via** ``pyproject.toml``
+**Via** ``pyproject.toml`` **(flat)**
 
 Add a ``[tool.sphinx-source-tree.file-options]`` table whose keys are
-file paths relative to the project root:
+file paths relative to the project root.  This mapping is used by all
+output files that do not select a named profile:
 
 .. code-block:: toml
 
@@ -231,12 +232,55 @@ This produces ``literalinclude`` blocks such as:
 
 Option keys may be written with either hyphens (``end-before``) or
 underscores (``end_before``); both are accepted and normalised to the
-hyphenated form that Sphinx expects.  Unknown option keys are rejected
-with a warning printed to stderr.
+hyphenated form that Sphinx expects.  Unknown option keys emit a warning
+to stderr and are ignored.
+
+**Via** ``pyproject.toml`` **(named profiles)**
+
+When you need different inclusion rules for different output files —
+for example a full source tree and a compact one for LLMs — define
+named profiles under ``[tool.sphinx-source-tree.file-options-profiles]``
+and select one per ``[[files]]`` entry with ``file-options-profile``:
+
+.. code-block:: toml
+
+   [tool.sphinx-source-tree]
+   ignore = ["__pycache__", "*.pyc", ".git"]
+
+   # "full" profile — no restrictions (empty table = include everything)
+   [tool.sphinx-source-tree.file-options-profiles.full]
+
+   # "compact" profile — trim each file at its test boundary
+   [tool.sphinx-source-tree.file-options-profiles.compact]
+   "src/app.py" = {"end-before" = "# ********** Tests **********"}
+   "src/models.py" = {"end-before" = "# ********** Tests **********"}
+   "src/utils.py" = {"lines" = "1-60"}
+
+   [[tool.sphinx-source-tree.files]]
+   output = "docs/source_tree_full.rst"
+   title = "Full project source"
+   file-options-profile = "full"
+
+   [[tool.sphinx-source-tree.files]]
+   output = "docs/source_tree.rst"
+   title = "Compact source for LLMs"
+   file-options-profile = "compact"
+
+Resolution order:
+
+1. If ``file-options-profile`` names a key in ``file-options-profiles``,
+   that profile's mapping is used.
+2. If the name is not found, a warning is printed to stderr and the tool
+   falls back to the top-level ``file-options`` table.
+3. If no profile is specified, the top-level ``file-options`` table is
+   used directly (fully backward compatible).
 
 **Via the Python API**
 
-Pass the ``file_options`` keyword argument to ``generate()``:
+Pass the ``file_options`` keyword argument to ``generate()`` with the
+already-resolved mapping for that output file. Profile selection happens
+in ``_generate_from_cfg``; when calling ``generate()`` directly simply
+pass whichever dict applies:
 
 .. pytestfixture: safe_test_path
 .. code-block:: python
@@ -245,14 +289,15 @@ Pass the ``file_options`` keyword argument to ``generate()``:
     from pathlib import Path
     from sphinx_source_tree import generate
 
+    compact_options = {
+        "src/app.py": {"end-before": "# *** Tests ***"},
+        "src/utils.py": {"start-after": "# -- public API --"},
+    }
+
     rst = generate(
         project_root=Path("."),
         output=Path("docs/source_tree2.rst"),
-        file_options={
-            "src/app.py": {"end-before": "# *** Tests ***"},
-            "src/utils.py": {"start-after": "# -- public API --"},
-            "src/models.py": {"lines": "1-60"},
-        },
+        file_options=compact_options,
     )
 
 Absolute paths are also accepted as keys and are resolved relative to
