@@ -179,7 +179,7 @@ shared defaults; each entry can override any of them.
    extensions = [".py"]
    whitelist = ["src"]
    include-all = false
-   depth = 5            # overrides the shared default
+   depth = 5  # overrides the shared default
 
    [[tool.sphinx-source-tree.files]]
    output = "docs/docs_tree.rst"
