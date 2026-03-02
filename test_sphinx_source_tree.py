@@ -29,6 +29,7 @@ __all__ = (
     "TestLoadConfig",
     "TestLoadConfig",
     "TestMain",
+    "TestOrder",
     "TestResolveConfig",
 )
 
@@ -340,6 +341,33 @@ class TestLoadConfig:
         assert len(cfg["files"]) == 2
         assert cfg["files"][0]["title"] == "Tree A"
         assert cfg["files"][1]["extensions"] == [".py"]
+
+    def test_reads_order_from_top_level(self, tmp_path):
+        """``order`` key at top level is loaded correctly."""
+        (tmp_path / "pyproject.toml").write_text(
+            textwrap.dedent("""\
+                [tool.sphinx-source-tree]
+                order = ["README.rst", "src/app.py"]
+            """),
+            encoding="utf-8",
+        )
+        cfg = load_config(tmp_path)
+        assert cfg["order"] == ["README.rst", "src/app.py"]
+
+    def test_reads_order_from_files_entry(self, tmp_path):
+        """``order`` key inside a [[files]] entry is loaded correctly."""
+        (tmp_path / "pyproject.toml").write_text(
+            textwrap.dedent("""\
+                [tool.sphinx-source-tree]
+
+                [[tool.sphinx-source-tree.files]]
+                output = "docs/tree.rst"
+                order = ["src/core.py", "src/utils.py"]
+            """),
+            encoding="utf-8",
+        )
+        cfg = load_config(tmp_path)
+        assert cfg["files"][0]["order"] == ["src/core.py", "src/utils.py"]
 
 
 # ----------------------------------------------------------------------------
@@ -1112,3 +1140,370 @@ class TestResolveFileOptionsProfile:
         )
         assert ":end-before: # compact stop" in content
         assert ":end-before: # top-level stop" not in content
+
+
+# ----------------------------------------------------------------------------
+# order
+# ----------------------------------------------------------------------------
+
+
+def _literalinclude_order(rst: str) -> list[str]:
+    """
+    Return the list of :caption: values that follow a literalinclude directive.
+    """
+    result = []
+    in_literalinclude = False
+    for line in rst.splitlines():
+        stripped = line.strip()
+        if stripped.startswith(".. literalinclude::"):
+            in_literalinclude = True
+        elif in_literalinclude and stripped.startswith(":caption:"):
+            result.append(stripped[len(":caption:") :].strip())
+            in_literalinclude = False
+        elif in_literalinclude and stripped and not stripped.startswith(":"):
+            in_literalinclude = False
+    return result
+
+
+def _extract_tree_section(rst: str) -> str:
+    """
+    Return just the code-block tree from the RST (stops before file listings).
+    """
+    lines = rst.splitlines()
+    start = next(i for i, ln in enumerate(lines) if "code-block:: text" in ln)
+    # The tree ends at the first blank line after we've left the indented block
+    # More robustly: find the first section header (underline of "---" or "===")
+    # that follows after the code-block.  The first file listing section starts
+    # right after the blank line separating the tree from it.
+    in_block = False
+    for i, ln in enumerate(lines[start:], start=start):
+        if ln.startswith("   ") or ln == "":
+            in_block = True
+        elif in_block and ln and not ln.startswith(" "):
+            # First non-blank, non-indented line after the tree block — this is
+            # the start of the first file section.
+            return "\n".join(lines[start:i])
+    return "\n".join(lines[start:])
+
+
+class TestOrder:
+    """Tests for the ``order`` option."""
+
+    # -- _apply_order unit tests ---------------------------------------------
+
+    def test_apply_order_empty_returns_unchanged(self, sample_project):
+        from sphinx_source_tree import _apply_order
+
+        files = sorted(sample_project.rglob("*.py"))
+
+        assert _apply_order(files, [], sample_project) == files
+
+    def test_apply_order_pinned_files_come_first(self, sample_project):
+        from sphinx_source_tree import _apply_order, collect_files
+
+        files = collect_files(
+            sample_project,
+            extensions=[".py"],
+            ignore=["__pycache__", "*.pyc"],
+            whitelist=[],
+            include_all=True,
+        )
+        ordered = _apply_order(
+            files,
+            ["src/utils.py", "src/app.py"],
+            sample_project,
+        )
+        rels = [f.relative_to(sample_project).as_posix() for f in ordered]
+        assert rels[0] == "src/utils.py"
+        assert rels[1] == "src/app.py"
+
+    def test_apply_order_unmentioned_files_follow_in_original_order(
+        self, sample_project
+    ):
+        from sphinx_source_tree import _apply_order, collect_files
+
+        files = collect_files(
+            sample_project,
+            extensions=[".py"],
+            ignore=["__pycache__", "*.pyc"],
+            whitelist=[],
+            include_all=True,
+        )
+        ordered = _apply_order(
+            files,
+            ["tests/test_app.py"],
+            sample_project,
+        )
+        rels = [f.relative_to(sample_project).as_posix() for f in ordered]
+        assert rels[0] == "tests/test_app.py"
+        # The rest should be in the same relative order as the original list
+        original_rels = [
+            f.relative_to(sample_project).as_posix() for f in files
+        ]
+        rest_original = [r for r in original_rels if r != "tests/test_app.py"]
+        rest_ordered = rels[1:]
+        assert rest_ordered == rest_original
+
+    def test_apply_order_nonexistent_entry_warns(self, sample_project, capsys):
+        from sphinx_source_tree import _apply_order, collect_files
+
+        files = collect_files(
+            sample_project,
+            extensions=[".py"],
+            ignore=["__pycache__", "*.pyc"],
+            whitelist=[],
+            include_all=True,
+        )
+        _apply_order(files, ["does/not/exist.py"], sample_project)
+        err = capsys.readouterr().err
+        assert "does/not/exist.py" in err
+
+    def test_apply_order_absolute_path_accepted(self, sample_project):
+        from sphinx_source_tree import _apply_order, collect_files
+
+        files = collect_files(
+            sample_project,
+            extensions=[".py"],
+            ignore=["__pycache__", "*.pyc"],
+            whitelist=[],
+            include_all=True,
+        )
+        abs_path = str(sample_project / "src" / "utils.py")
+        ordered = _apply_order(files, [abs_path], sample_project)
+        assert (
+            ordered[0].relative_to(sample_project).as_posix() == "src/utils.py"
+        )
+
+    def test_apply_order_no_duplicates(self, sample_project):
+        from sphinx_source_tree import _apply_order, collect_files
+
+        files = collect_files(
+            sample_project,
+            extensions=[".py"],
+            ignore=["__pycache__", "*.pyc"],
+            whitelist=[],
+            include_all=True,
+        )
+        ordered = _apply_order(
+            files,
+            ["src/app.py", "src/utils.py"],
+            sample_project,
+        )
+        rels = [f.relative_to(sample_project).as_posix() for f in ordered]
+        assert len(rels) == len(set(rels)), "Duplicate files in output"
+
+    # -- generate() with order -----------------------------------------------
+
+    def test_generate_order_places_files_first(self, sample_project):
+        rst = generate(
+            project_root=sample_project,
+            output=sample_project / "docs" / "out.rst",
+            extensions=[".py"],
+            ignore=["__pycache__", "*.pyc"],
+            order=["src/utils.py", "src/app.py"],
+        )
+        captions = _literalinclude_order(rst)
+        assert captions.index("src/utils.py") < captions.index("src/app.py")
+        assert captions[0] == "src/utils.py"
+        assert captions[1] == "src/app.py"
+
+    def test_generate_order_does_not_affect_tree(self, sample_project):
+        """The ASCII directory tree must be identical regardless of order."""
+        rst_default = generate(
+            project_root=sample_project,
+            output=sample_project / "docs" / "out.rst",
+            extensions=[".py"],
+            ignore=["__pycache__", "*.pyc"],
+        )
+        rst_ordered = generate(
+            project_root=sample_project,
+            output=sample_project / "docs" / "out.rst",
+            extensions=[".py"],
+            ignore=["__pycache__", "*.pyc"],
+            order=["src/utils.py", "src/app.py"],
+        )
+        assert _extract_tree_section(rst_default) == _extract_tree_section(
+            rst_ordered
+        )
+
+    def test_generate_order_none_is_default_sorted(self, sample_project):
+        """Passing order=None (default) preserves the existing sorted order."""
+        rst_no_order = generate(
+            project_root=sample_project,
+            output=sample_project / "docs" / "out.rst",
+            extensions=[".py"],
+            ignore=["__pycache__", "*.pyc"],
+        )
+        rst_explicit_none = generate(
+            project_root=sample_project,
+            output=sample_project / "docs" / "out.rst",
+            extensions=[".py"],
+            ignore=["__pycache__", "*.pyc"],
+            order=None,
+        )
+        assert rst_no_order == rst_explicit_none
+
+    def test_generate_order_empty_list_is_noop(self, sample_project):
+        rst_no_order = generate(
+            project_root=sample_project,
+            output=sample_project / "docs" / "out.rst",
+            extensions=[".py"],
+            ignore=["__pycache__", "*.pyc"],
+        )
+        rst_empty_order = generate(
+            project_root=sample_project,
+            output=sample_project / "docs" / "out.rst",
+            extensions=[".py"],
+            ignore=["__pycache__", "*.pyc"],
+            order=[],
+        )
+        assert rst_no_order == rst_empty_order
+
+    def test_generate_order_partial_list_rest_in_default_order(
+        self, sample_project
+    ):
+        """
+        Only pin one file; the rest should follow in default sorted order.
+        """
+        rst_default = generate(
+            project_root=sample_project,
+            output=sample_project / "docs" / "out.rst",
+            extensions=[".py"],
+            ignore=["__pycache__", "*.pyc"],
+        )
+        rst_ordered = generate(
+            project_root=sample_project,
+            output=sample_project / "docs" / "out.rst",
+            extensions=[".py"],
+            ignore=["__pycache__", "*.pyc"],
+            order=["tests/test_app.py"],
+        )
+        default_captions = _literalinclude_order(rst_default)
+        ordered_captions = _literalinclude_order(rst_ordered)
+
+        assert ordered_captions[0] == "tests/test_app.py"
+        rest = ordered_captions[1:]
+        expected_rest = [
+            c for c in default_captions if c != "tests/test_app.py"
+        ]
+        assert rest == expected_rest
+
+    # -- pyproject.toml integration ------------------------------------------
+
+    def test_order_loaded_from_top_level_pyproject(self, sample_project):
+        (sample_project / "pyproject.toml").write_text(
+            textwrap.dedent("""\
+                [tool.sphinx-source-tree]
+                ignore = ["__pycache__", "*.pyc"]
+                order = ["src/utils.py", "src/app.py"]
+            """),
+            encoding="utf-8",
+        )
+        out = sample_project / "docs" / "out.rst"
+        main(
+            [
+                "--project-root",
+                str(sample_project),
+                "--output",
+                str(out),
+                "--extensions",
+                ".py",
+            ]
+        )
+        content = out.read_text(encoding="utf-8")
+        captions = _literalinclude_order(content)
+        assert captions[0] == "src/utils.py"
+        assert captions[1] == "src/app.py"
+
+    def test_order_per_files_entry_in_pyproject(self, sample_project):
+        """order set inside [[files]] applies only to that output."""
+        (sample_project / "pyproject.toml").write_text(
+            textwrap.dedent(f"""\
+                [tool.sphinx-source-tree]
+                ignore = ["__pycache__", "*.pyc"]
+
+                [[tool.sphinx-source-tree.files]]
+                output = "{sample_project}/docs/ordered.rst"
+                title = "Ordered"
+                extensions = [".py"]
+                order = ["src/utils.py", "src/app.py"]
+
+                [[tool.sphinx-source-tree.files]]
+                output = "{sample_project}/docs/default.rst"
+                title = "Default"
+                extensions = [".py"]
+            """),
+            encoding="utf-8",
+        )
+        main(["--project-root", str(sample_project)])
+
+        ordered_content = (sample_project / "docs" / "ordered.rst").read_text(
+            encoding="utf-8"
+        )
+        default_content = (sample_project / "docs" / "default.rst").read_text(
+            encoding="utf-8"
+        )
+
+        ordered_captions = _literalinclude_order(ordered_content)
+        default_captions = _literalinclude_order(default_content)
+
+        # The [[files]] with order has utils before app
+        assert ordered_captions[0] == "src/utils.py"
+        assert ordered_captions[1] == "src/app.py"
+
+        # The [[files]] without order uses default sorted order
+        assert default_captions.index("src/app.py") < default_captions.index(
+            "src/utils.py"
+        )
+
+    def test_cli_order_overrides_pyproject(self, sample_project):
+        """--order CLI flag wins over pyproject order."""
+        (sample_project / "pyproject.toml").write_text(
+            textwrap.dedent("""\
+                [tool.sphinx-source-tree]
+                ignore = ["__pycache__", "*.pyc"]
+                order = ["src/app.py", "src/utils.py"]
+            """),
+            encoding="utf-8",
+        )
+        out = sample_project / "docs" / "out.rst"
+        main(
+            [
+                "--project-root",
+                str(sample_project),
+                "--output",
+                str(out),
+                "--extensions",
+                ".py",
+                "--order",
+                "src/utils.py",
+                "src/app.py",
+            ]
+        )
+        content = out.read_text(encoding="utf-8")
+        captions = _literalinclude_order(content)
+        assert captions[0] == "src/utils.py"
+        assert captions[1] == "src/app.py"
+
+    def test_top_level_order_inherited_by_files_entries(self, sample_project):
+        """
+        A top-level order is inherited by [[files]] that don't set their own.
+        """
+        (sample_project / "pyproject.toml").write_text(
+            textwrap.dedent(f"""\
+                [tool.sphinx-source-tree]
+                ignore = ["__pycache__", "*.pyc"]
+                order = ["src/utils.py"]
+
+                [[tool.sphinx-source-tree.files]]
+                output = "{sample_project}/docs/out.rst"
+                extensions = [".py"]
+            """),
+            encoding="utf-8",
+        )
+        main(["--project-root", str(sample_project)])
+        content = (sample_project / "docs" / "out.rst").read_text(
+            encoding="utf-8"
+        )
+        captions = _literalinclude_order(content)
+        assert captions[0] == "src/utils.py"
