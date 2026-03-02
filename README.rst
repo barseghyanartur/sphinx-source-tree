@@ -122,6 +122,12 @@ CLI reference
     Attach ``:linenos:`` to ``literalinclude`` directives.
     Default: off.
 
+``--order PATH [PATH ...]``
+    Explicit ordering for the ``literalinclude`` listing.  The files
+    listed here appear **first**, in the given sequence; all remaining
+    collected files follow in their default sorted order.  Has no
+    effect on the ASCII directory tree.
+
 ``--stdout``
     Write to stdout instead of the output file.
 
@@ -149,6 +155,7 @@ Single-file example:
    title = "Source listing"
    linenos = true
    extra-languages = {".vue" = "vue", ".svelte" = "svelte"}
+   order = ["README.rst", "pyproject.toml", "src/app.py"]
 
 Key names use hyphens (``include-all``) to follow TOML/PEP 621
 convention; they are normalised internally.
@@ -194,6 +201,85 @@ The merge priority is: **built-in defaults** < **top-level
 
 When no ``[[files]]`` entries are present the tool behaves exactly as
 before, so existing configurations are fully backward compatible.
+
+Controlling listing order
+-------------------------
+
+By default, ``literalinclude`` blocks are emitted in alphabetical order.
+The ``order`` option lets you pin specific files to the top of the
+listing while leaving all other files in their default sorted order.
+
+.. note::
+
+   ``order`` affects only the ``literalinclude`` source-code listing.
+   The ASCII directory tree is always rendered in its natural sorted
+   order and is unaffected by this setting.
+
+**Via** ``pyproject.toml`` **(top-level)**
+
+The top-level ``order`` list is shared by all output files (or inherited
+by ``[[files]]`` entries that do not set their own):
+
+.. code-block:: toml
+
+   [tool.sphinx-source-tree]
+   order = [
+       "README.rst",
+       "pyproject.toml",
+       "src/app.py",
+   ]
+
+**Via** ``[[tool.sphinx-source-tree.files]]``
+
+Each ``[[files]]`` entry can define its own ``order``, which overrides
+the top-level value for that output file only:
+
+.. code-block:: toml
+
+   [tool.sphinx-source-tree]
+   ignore = ["__pycache__", "*.pyc"]
+
+   [[tool.sphinx-source-tree.files]]
+   output = "docs/source_tree.rst"
+   title = "Full project source"
+   # no order — uses default alphabetical listing
+
+   [[tool.sphinx-source-tree.files]]
+   output = "docs/llm_tree.rst"
+   title = "Source for LLMs"
+   order = ["src/core.py", "src/models.py", "src/utils.py"]
+
+**Via the CLI**
+
+.. code-block:: sh
+
+   sphinx-source-tree --order src/core.py src/models.py src/utils.py
+
+**Via the Python API**
+
+Pass the ``order`` keyword argument to ``generate()``:
+
+.. pytestfixture: safe_test_path
+.. code-block:: python
+    :name: test_python_api_order
+
+    from pathlib import Path
+    from sphinx_source_tree import generate
+
+    rst = generate(
+        project_root=Path("."),
+        output=Path("docs/source_tree_ordered.rst"),
+        extensions=[".py", ".rst"],
+        order=[
+            "README.rst",
+            "src/app.py",
+        ],
+    )
+    Path("docs/source_tree_ordered.rst").write_text(rst)
+
+Files listed in ``order`` that do not match any collected file (because
+they are excluded by extension or ignore rules, or simply do not exist)
+emit a warning to stderr and are silently skipped.
 
 Per-file inclusion options
 --------------------------
