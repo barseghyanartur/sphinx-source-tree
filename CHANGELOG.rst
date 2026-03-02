@@ -16,6 +16,16 @@ are used for versioning (schema follows below):
   0.3.4 to 0.4).
 - All backwards incompatible changes are mentioned in this document.
 
+0.2.3
+-----
+2026-03-03
+
+- Added ``order`` option to control the sequence of ``literalinclude``
+  blocks in the generated output. Listed files appear first; the rest
+  follow in default sorted order. Does not affect the directory tree.
+  Available via ``pyproject.toml``, ``[[files]]`` entries, the
+  ``--order`` CLI flag, and the ``generate()`` Python API.
+
 0.2.2
 -----
 2026-03-01

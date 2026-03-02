@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any
 
 __title__ = "sphinx-source-tree"
-__version__ = "0.2.2"
+__version__ = "0.2.3"
 __author__ = "Artur Barseghyan <artur.barseghyan@gmail.com>"
 __copyright__ = "2026 Artur Barseghyan"
 __license__ = "MIT"
@@ -88,6 +88,7 @@ DEFAULTS: dict[str, Any] = {
     "file_options": {},
     "file_options_profiles": {},
     "file_options_profile": None,
+    "order": [],
 }
 
 LANGUAGE_MAP: dict[str, str] = {
@@ -337,6 +338,62 @@ def _resolve_file_options_profile(cfg: dict[str, Any]) -> dict[str, Any]:
     return cfg.get("file_options") or {}
 
 
+def _apply_order(
+    files: list[Path],
+    order: list[str],
+    root: Path,
+) -> list[Path]:
+    """Return *files* reordered so that paths listed in *order* come first.
+
+    Files named in *order* appear at the front in the specified sequence.
+    Any *order* entry that does not match a collected file is silently
+    skipped (the file may have been excluded by extension / ignore rules).
+    The remaining files follow in their original (sorted) order.
+
+    *order* entries are interpreted as paths relative to *root*.  Absolute
+    paths are also accepted and resolved relative to *root* automatically.
+    """
+    if not order:
+        return files
+
+    # Build a lookup: relative-posix-path → Path object
+    file_map: dict[str, Path] = {
+        fp.relative_to(root).as_posix(): fp for fp in files
+    }
+
+    # Normalise each order entry to a relative posix key
+    ordered_keys: list[str] = []
+    for entry in order:
+        entry_path = Path(entry)
+        if entry_path.is_absolute():
+            try:
+                key = entry_path.relative_to(root).as_posix()
+            except ValueError:
+                key = entry_path.as_posix()
+        else:
+            key = Path(entry).as_posix()
+        ordered_keys.append(key)
+
+    # Collect pinned files (in order), then the rest
+    pinned: list[Path] = []
+    for key in ordered_keys:
+        if key in file_map:
+            pinned.append(file_map[key])
+        else:
+            print(
+                f"Warning: order entry {key!r} does not match any collected "
+                f"file and will be ignored.",
+                file=sys.stderr,
+            )
+
+    pinned_set = {fp.relative_to(root).as_posix() for fp in pinned}
+    rest = [
+        fp for fp in files if fp.relative_to(root).as_posix() not in pinned_set
+    ]
+
+    return pinned + rest
+
+
 # ----------------------------------------------------------------------------
 # Core API
 # ----------------------------------------------------------------------------
@@ -447,6 +504,7 @@ def generate(
     linenos: bool = False,
     extra_languages: dict[str, str] | None = None,
     file_options: dict[str, dict[str, Any]] | None = None,
+    order: list[str] | None = None,
 ) -> str:
     """Build the full ``.rst`` document and return it as a string.
 
@@ -498,6 +556,32 @@ def generate(
         called directly the *file_options* argument already contains the
         resolved (profile-selected) mapping; profile resolution happens
         in ``_generate_from_cfg``.
+    order:
+        Explicit ordering for the ``literalinclude`` listing.  Each
+        element is a file path relative to *project_root* (absolute paths
+        are also accepted).  Files listed here appear **first**, in the
+        given sequence; all remaining collected files follow in their
+        default sorted order.  Files not present in the collected set
+        (e.g. excluded by extension or ignore rules) are silently skipped
+        with a stderr warning.
+
+        This option does **not** affect the ASCII directory tree — only
+        the ``literalinclude`` blocks.
+
+        Example in ``pyproject.toml``::
+
+            [tool.sphinx-source-tree]
+            order = [
+                "README.rst",
+                "pyproject.toml",
+                "src/app.py",
+            ]
+
+        Or per ``[[files]]`` entry::
+
+            [[tool.sphinx-source-tree.files]]
+            output = "docs/source_tree.rst"
+            order = ["src/core.py", "src/utils.py"]
     """
     root = Path(project_root).resolve()
     output_dir = Path(output).resolve().parent
@@ -555,6 +639,10 @@ def generate(
         whitelist=_whitelist,
         include_all=include_all,
     )
+
+    # Apply explicit ordering (only affects literalinclude listing)
+    files = _apply_order(files, order or [], root)
+
     for fp in files:
         rel = fp.relative_to(root).as_posix()
         include_path = os.path.relpath(fp, output_dir).replace(os.sep, "/")
@@ -594,6 +682,7 @@ def _generate_from_cfg(cfg: dict[str, Any]) -> str:
         linenos=cfg.get("linenos", DEFAULTS["linenos"]),
         extra_languages=cfg.get("extra_languages"),
         file_options=_resolve_file_options_profile(cfg),
+        order=cfg.get("order"),
     )
 
 
@@ -688,6 +777,18 @@ def build_parser() -> argparse.ArgumentParser:
         action=argparse.BooleanOptionalAction,
         default=None,
         help="Add :linenos: to literalinclude directives",
+    )
+    p.add_argument(
+        "--order",
+        nargs="+",
+        default=None,
+        metavar="PATH",
+        help=(
+            "Explicit file ordering for literalinclude listing. "
+            "Listed files appear first, in the given sequence; "
+            "remaining files follow in default sorted order. "
+            "Does not affect the directory tree."
+        ),
     )
     p.add_argument(
         "--stdout",

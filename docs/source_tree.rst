@@ -26,12 +26,12 @@ the contents of each key file.
    ├── test_sphinx_source_tree.py
    └── uv.lock
 
-.coveralls.yml
---------------
+README.rst
+----------
 
-.. literalinclude:: ../.coveralls.yml
-   :language: yaml
-   :caption: .coveralls.yml
+.. literalinclude:: ../README.rst
+   :language: rst
+   :caption: README.rst
 
 CONTRIBUTING.rst
 ----------------
@@ -40,12 +40,12 @@ CONTRIBUTING.rst
    :language: rst
    :caption: CONTRIBUTING.rst
 
-README.rst
-----------
+.coveralls.yml
+--------------
 
-.. literalinclude:: ../README.rst
-   :language: rst
-   :caption: README.rst
+.. literalinclude:: ../.coveralls.yml
+   :language: yaml
+   :caption: .coveralls.yml
 
 conftest.py
 -----------
