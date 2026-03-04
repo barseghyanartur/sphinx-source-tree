@@ -6,6 +6,8 @@ from pathlib import Path
 import pytest
 from sphinx_source_tree import (
     DEFAULTS,
+    SYSTEM_EXTENSIONS,
+    SYSTEM_IGNORE,
     build_parser,
     build_tree,
     collect_files,
@@ -1507,3 +1509,281 @@ class TestOrder:
         )
         captions = _literalinclude_order(content)
         assert captions[0] == "src/utils.py"
+
+
+# ---------------------------------------------------------------------------
+# system_ignore / user_ignore / system_extensions / user_extensions
+# ---------------------------------------------------------------------------
+
+
+class TestIgnoreExtensionsMerge:
+    """Tests for the system/user split of ignore and extensions."""
+
+    # -- _merge_ignore -------------------------------------------------------
+
+    def test_merge_ignore_uses_system_plus_user(self):
+        from sphinx_source_tree import _merge_ignore
+
+        cfg = {
+            "system_ignore": ["*.pyc", "__pycache__"],
+            "user_ignore": ["my_secret/", "local_*"],
+            "ignore": None,
+        }
+        result = _merge_ignore(cfg)
+        assert result == ["*.pyc", "__pycache__", "my_secret/", "local_*"]
+
+    def test_merge_ignore_explicit_ignore_overrides_all(self):
+        from sphinx_source_tree import _merge_ignore
+
+        cfg = {
+            "system_ignore": ["*.pyc"],
+            "user_ignore": ["foo"],
+            "ignore": ["only_this"],
+        }
+        assert _merge_ignore(cfg) == ["only_this"]
+
+    def test_merge_ignore_deduplicates(self):
+        from sphinx_source_tree import _merge_ignore
+
+        cfg = {
+            "system_ignore": ["*.pyc", "__pycache__"],
+            "user_ignore": ["*.pyc", "extra"],
+            "ignore": None,
+        }
+        result = _merge_ignore(cfg)
+        assert result.count("*.pyc") == 1
+        assert "extra" in result
+
+    def test_merge_ignore_empty_user(self):
+        from sphinx_source_tree import _merge_ignore
+
+        cfg = {
+            "system_ignore": ["*.pyc"],
+            "user_ignore": [],
+            "ignore": None,
+        }
+        assert _merge_ignore(cfg) == ["*.pyc"]
+
+    def test_merge_ignore_empty_system(self):
+        from sphinx_source_tree import _merge_ignore
+
+        cfg = {
+            "system_ignore": [],
+            "user_ignore": ["my_dir"],
+            "ignore": None,
+        }
+        assert _merge_ignore(cfg) == ["my_dir"]
+
+    # -- _merge_extensions ---------------------------------------------------
+
+    def test_merge_extensions_uses_system_plus_user(self):
+        from sphinx_source_tree import _merge_extensions
+
+        cfg = {
+            "system_extensions": [".py", ".rst"],
+            "user_extensions": [".vue", ".svelte"],
+            "extensions": None,
+        }
+        result = _merge_extensions(cfg)
+        assert result == [".py", ".rst", ".vue", ".svelte"]
+
+    def test_merge_extensions_explicit_overrides_all(self):
+        from sphinx_source_tree import _merge_extensions
+
+        cfg = {
+            "system_extensions": [".py"],
+            "user_extensions": [".vue"],
+            "extensions": [".ts"],
+        }
+        assert _merge_extensions(cfg) == [".ts"]
+
+    def test_merge_extensions_deduplicates(self):
+        from sphinx_source_tree import _merge_extensions
+
+        cfg = {
+            "system_extensions": [".py", ".rst"],
+            "user_extensions": [".py", ".vue"],
+            "extensions": None,
+        }
+        result = _merge_extensions(cfg)
+        assert result.count(".py") == 1
+        assert ".vue" in result
+
+    # -- resolve_config integration ------------------------------------------
+
+    def test_user_ignore_added_to_system_defaults(self, tmp_path):
+        """user-ignore in pyproject is merged with system defaults."""
+        (tmp_path / "pyproject.toml").write_text(
+            '[tool.sphinx-source-tree]\nuser-ignore = ["my_dir", "local_*"]\n',
+            encoding="utf-8",
+        )
+        parser = build_parser()
+        args = parser.parse_args(["--project-root", str(tmp_path)])
+        delattr(args, "stdout")
+        cfg = resolve_config(args)
+        # System patterns must still be present
+        assert "*.pyc" in cfg["ignore"]
+        assert "__pycache__" in cfg["ignore"]
+        # User patterns are appended
+        assert "my_dir" in cfg["ignore"]
+        assert "local_*" in cfg["ignore"]
+
+    def test_user_extensions_added_to_system_defaults(self, tmp_path):
+        """user-extensions in pyproject is merged with system defaults."""
+        (tmp_path / "pyproject.toml").write_text(
+            "[tool.sphinx-source-tree]\nuser-extensions = "
+            '[".vue", ".svelte"]\n',
+            encoding="utf-8",
+        )
+        parser = build_parser()
+        args = parser.parse_args(["--project-root", str(tmp_path)])
+        delattr(args, "stdout")
+        cfg = resolve_config(args)
+        # System extensions must still be present
+        assert ".py" in cfg["extensions"]
+        assert ".rst" in cfg["extensions"]
+        # User extensions are appended
+        assert ".vue" in cfg["extensions"]
+        assert ".svelte" in cfg["extensions"]
+
+    def test_explicit_ignore_replaces_everything(self, tmp_path):
+        """Setting ignore= directly replaces the system+user union."""
+        (tmp_path / "pyproject.toml").write_text(
+            '[tool.sphinx-source-tree]\nignore = ["only_this"]\n',
+            encoding="utf-8",
+        )
+        parser = build_parser()
+        args = parser.parse_args(["--project-root", str(tmp_path)])
+        delattr(args, "stdout")
+        cfg = resolve_config(args)
+        assert cfg["ignore"] == ["only_this"]
+
+    def test_explicit_extensions_replaces_everything(self, tmp_path):
+        """Setting extensions= directly replaces the system+user union."""
+        (tmp_path / "pyproject.toml").write_text(
+            '[tool.sphinx-source-tree]\nextensions = [".rs"]\n',
+            encoding="utf-8",
+        )
+        parser = build_parser()
+        args = parser.parse_args(["--project-root", str(tmp_path)])
+        delattr(args, "stdout")
+        cfg = resolve_config(args)
+        assert cfg["extensions"] == [".rs"]
+
+    def test_cli_user_ignore_flag(self, tmp_path):
+        """--user-ignore CLI flag appends to system defaults."""
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "--project-root",
+                str(tmp_path),
+                "--user-ignore",
+                "secret/",
+                "tmp_*",
+            ]
+        )
+        delattr(args, "stdout")
+        cfg = resolve_config(args)
+        assert "*.pyc" in cfg["ignore"]
+        assert "secret/" in cfg["ignore"]
+        assert "tmp_*" in cfg["ignore"]
+
+    def test_cli_user_extensions_flag(self, tmp_path):
+        """--user-extensions CLI flag appends to system defaults."""
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "--project-root",
+                str(tmp_path),
+                "--user-extensions",
+                ".vue",
+                ".svelte",
+            ]
+        )
+        delattr(args, "stdout")
+        cfg = resolve_config(args)
+        assert ".py" in cfg["extensions"]
+        assert ".vue" in cfg["extensions"]
+        assert ".svelte" in cfg["extensions"]
+
+    def test_per_file_user_ignore_merged_independently(self, tmp_path):
+        """user-ignore inside [[files]] is resolved per-file."""
+        (tmp_path / "pyproject.toml").write_text(
+            textwrap.dedent("""\
+                [tool.sphinx-source-tree]
+
+                [[tool.sphinx-source-tree.files]]
+                output = "docs/out.rst"
+                user-ignore = ["extra_dir"]
+            """),
+            encoding="utf-8",
+        )
+        parser = build_parser()
+        args = parser.parse_args(["--project-root", str(tmp_path)])
+        delattr(args, "stdout")
+        cfg = resolve_config(args)
+        file_ignore = cfg["files"][0]["ignore"]
+        assert "*.pyc" in file_ignore
+        assert "extra_dir" in file_ignore
+
+    def test_per_file_user_extensions_merged_independently(self, tmp_path):
+        """user-extensions inside [[files]] is resolved per-file."""
+        (tmp_path / "pyproject.toml").write_text(
+            textwrap.dedent("""\
+                [tool.sphinx-source-tree]
+
+                [[tool.sphinx-source-tree.files]]
+                output = "docs/out.rst"
+                user-extensions = [".vue"]
+            """),
+            encoding="utf-8",
+        )
+        parser = build_parser()
+        args = parser.parse_args(["--project-root", str(tmp_path)])
+        delattr(args, "stdout")
+        cfg = resolve_config(args)
+        file_exts = cfg["files"][0]["extensions"]
+        assert ".py" in file_exts
+        assert ".vue" in file_exts
+
+    def test_generate_respects_user_extensions(self, sample_project):
+        """user_extensions are actually used when collecting files."""
+        (sample_project / "src" / "style.vue").write_text(
+            "<template></template>", encoding="utf-8"
+        )
+        from sphinx_source_tree import _merge_extensions
+
+        merged = _merge_extensions(
+            {
+                "system_extensions": list(SYSTEM_EXTENSIONS),
+                "user_extensions": [".vue"],
+                "extensions": None,
+            }
+        )
+        rst = generate(
+            project_root=sample_project,
+            output=sample_project / "docs" / "out.rst",
+            extensions=merged,
+            ignore=["__pycache__", "*.pyc"],
+            extra_languages={".vue": "vue"},
+        )
+        assert "style.vue" in rst
+
+    def test_generate_respects_user_ignore(self, sample_project):
+        """user_ignore patterns are actually excluded from output."""
+        from sphinx_source_tree import _merge_ignore
+
+        merged = _merge_ignore(
+            {
+                "system_ignore": list(SYSTEM_IGNORE),
+                "user_ignore": ["src"],
+                "ignore": None,
+            }
+        )
+        rst = generate(
+            project_root=sample_project,
+            output=sample_project / "docs" / "out.rst",
+            extensions=[".py"],
+            ignore=merged,
+        )
+        assert "app.py" not in rst

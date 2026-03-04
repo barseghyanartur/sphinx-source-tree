@@ -102,11 +102,22 @@ CLI reference
 
 ``-e, --extensions EXT [EXT ...]``
     File suffixes to include via ``literalinclude``.
+    **Replaces** both system and user extension lists entirely.
     Default: ``.js .json .md .py .rst .toml .yaml .yml``.
 
+``--user-extensions EXT [EXT ...]``
+    Additional file suffixes to include **on top of** the built-in system
+    extensions.  Use this instead of ``-e`` when you only want to add to
+    the defaults rather than replace them.
+
 ``-i, --ignore PAT [PAT ...]``
-    Glob patterns to ignore (matched against both the relative path
-    and the bare file name).
+    Glob patterns to ignore.  **Replaces** both system and user ignore
+    lists entirely.
+
+``--user-ignore PAT [PAT ...]``
+    Additional glob patterns to ignore **on top of** the built-in system
+    patterns.  Use this instead of ``-i`` when you only want to add to
+    the defaults rather than replace them.
 
 ``-w, --whitelist DIR [DIR ...]``
     Restrict output to these directories.  Ignored when
@@ -141,6 +152,51 @@ All CLI options (except ``--stdout`` and ``--version``) can be set under
 ``[tool.sphinx-source-tree]`` in your project's ``pyproject.toml``.
 CLI arguments always take precedence.
 
+ignore / extensions — system vs user split
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The built-in defaults ship a curated set of ignore patterns and file
+extensions called the **system** lists.  Rather than replacing them
+every time you add a project-specific pattern, you can extend them with
+**user** lists:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 20 60
+
+   * - key
+     - type
+     - description
+   * - ``system-ignore``
+     - list of strings
+     - Built-in patterns (``*.pyc``, ``.git``, …).  Override only when you
+       need to *remove* a default pattern.
+   * - ``user-ignore``
+     - list of strings
+     - Your project-specific patterns.  Merged **after** ``system-ignore``.
+   * - ``ignore``
+     - list of strings
+     - **Replaces** the computed ``system-ignore + user-ignore`` union
+       entirely.  Provided for backward compatibility.
+   * - ``system-extensions``
+     - list of strings
+     - Built-in extensions (``.py``, ``.rst``, …).
+   * - ``user-extensions``
+     - list of strings
+     - Your project-specific extensions.  Merged **after**
+       ``system-extensions``.
+   * - ``extensions``
+     - list of strings
+     - **Replaces** the computed union entirely.  Provided for backward
+       compatibility.
+
+The merge priority for the final ``ignore`` / ``extensions`` lists is:
+
+.. code-block:: text
+
+   system list  +  user list  →  union
+   (overridden entirely when the plain ``ignore`` / ``extensions`` key is set)
+
 Single-file example:
 
 .. code-block:: toml
@@ -148,17 +204,16 @@ Single-file example:
    [tool.sphinx-source-tree]
    depth = 4
    output = "docs/source_tree.rst"
-   extensions = [".py", ".rst", ".toml"]
-   ignore = ["__pycache__", "*.pyc", ".git", "*.egg-info"]
+   # Add project-specific patterns without losing the built-in defaults:
+   user-extensions = [".vue", ".svelte"]
+   user-ignore = ["docs/_build", "my_secret_dir"]
+   # (use extensions / ignore to *replace* the defaults entirely)
    whitelist = ["src", "docs"]
    include-all = false
    title = "Source listing"
    linenos = true
    extra-languages = {".vue" = "vue", ".svelte" = "svelte"}
    order = ["README.rst", "pyproject.toml", "src/app.py"]
-
-Key names use hyphens (``include-all``) to follow TOML/PEP 621
-convention; they are normalised internally.
 
 Multiple output files
 ---------------------
