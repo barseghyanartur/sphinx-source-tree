@@ -215,6 +215,9 @@ Single-file example:
    extra-languages = {".vue" = "vue", ".svelte" = "svelte"}
    order = ["README.rst", "pyproject.toml", "src/app.py"]
 
+Key names use hyphens (``include-all``) to follow TOML/PEP 621
+convention; they are normalised internally.
+
 Multiple output files
 ---------------------
 
