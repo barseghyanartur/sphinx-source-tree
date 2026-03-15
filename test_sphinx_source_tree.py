@@ -287,6 +287,156 @@ class TestGenerate:
         )
         assert ":language: vue" in rst
 
+    def test_headers_mode_no_literalinclude(self, sample_project):
+        rst = generate(
+            project_root=sample_project,
+            output=sample_project / "out.rst",
+            extensions=[".py"],
+            ignore=["__pycache__", "*.pyc"],
+            mode="headers",
+        )
+        assert ".. literalinclude::" not in rst
+        assert "app.py" in rst
+        assert ".. code-block:: text" not in rst
+
+    def test_headers_mode_headings_are_hyperlinks(self, sample_project):
+        rst = generate(
+            project_root=sample_project,
+            output=sample_project / "out.rst",
+            extensions=[".py"],
+            ignore=["__pycache__", "*.pyc"],
+            mode="headers",
+        )
+        assert "`src/app.py <" in rst
+        assert ">`_" in rst
+
+    def test_headers_mode_has_section_headings(self, sample_project):
+        rst = generate(
+            project_root=sample_project,
+            output=sample_project / "out.rst",
+            extensions=[".py"],
+            ignore=["__pycache__", "*.pyc"],
+            mode="headers",
+        )
+        lines = rst.splitlines()
+        heading_underlines = [_l for _l in lines if _l and set(_l) == {"-"}]
+        assert len(heading_underlines) >= 1
+
+    def test_full_mode_is_default(self, sample_project):
+        rst_default = generate(
+            project_root=sample_project,
+            output=sample_project / "out.rst",
+            extensions=[".py"],
+            ignore=["__pycache__", "*.pyc"],
+        )
+        rst_full = generate(
+            project_root=sample_project,
+            output=sample_project / "out.rst",
+            extensions=[".py"],
+            ignore=["__pycache__", "*.pyc"],
+            mode="full",
+        )
+        assert rst_default == rst_full
+
+    def test_rename_extension_to_links_to_txt(self, sample_project):
+        rst = generate(
+            project_root=sample_project,
+            output=sample_project / "docs" / "llms.rst",
+            extensions=[".py", ".rst"],
+            ignore=["__pycache__", "*.pyc"],
+            mode="headers",
+            rename_extension_to=".txt",
+        )
+        assert ".txt" in rst
+        assert ".rst>`_" not in rst
+
+    def test_rename_extension_to_excludes_non_rst(self, sample_project):
+        rst = generate(
+            project_root=sample_project,
+            output=sample_project / "docs" / "llms.rst",
+            extensions=[".py", ".rst"],
+            ignore=["__pycache__", "*.pyc"],
+            mode="headers",
+            rename_extension_to=".txt",
+        )
+        assert "app.py>`_" not in rst
+        assert "utils.py>`_" not in rst
+
+    def test_headers_mode_groups_by_directory(self, sample_project):
+        rst = generate(
+            project_root=sample_project,
+            output=sample_project / "out.rst",
+            extensions=[".py"],
+            ignore=["__pycache__", "*.pyc"],
+            mode="headers",
+        )
+        lines = rst.splitlines()
+        assert "Src" in lines
+        assert "Tests" in lines
+        assert any(line.startswith("- `src/app.py") for line in lines)
+        assert any(line.startswith("- `tests/test_app.py") for line in lines)
+
+    def test_headers_mode_no_ascii_tree(self, sample_project):
+        rst = generate(
+            project_root=sample_project,
+            output=sample_project / "out.rst",
+            extensions=[".py"],
+            ignore=["__pycache__", "*.pyc"],
+            mode="headers",
+        )
+        assert ".. code-block:: text" not in rst
+        assert "├──" not in rst
+
+    def test_headers_mode_description_blockquote(self, sample_project):
+        rst = generate(
+            project_root=sample_project,
+            output=sample_project / "out.rst",
+            extensions=[".py"],
+            ignore=["__pycache__", "*.pyc"],
+            mode="headers",
+            description="A short summary.",
+        )
+        assert "   A short summary." in rst
+
+    def test_headers_mode_optional_section(self, sample_project):
+        rst = generate(
+            project_root=sample_project,
+            output=sample_project / "out.rst",
+            extensions=[".py"],
+            ignore=["__pycache__", "*.pyc"],
+            mode="headers",
+            optional=["tests/*"],
+        )
+        lines = rst.splitlines()
+        assert "Optional" in lines
+        assert "Tests" not in lines
+        assert any("test_app.py" in line for line in lines)
+
+    def test_headers_mode_file_description(self, sample_project):
+        rst = generate(
+            project_root=sample_project,
+            output=sample_project / "out.rst",
+            extensions=[".py"],
+            ignore=["__pycache__", "*.pyc"],
+            mode="headers",
+            file_options={"src/app.py": {"description": "Main application"}},
+        )
+        assert "`_: Main application" in rst
+
+    def test_headers_mode_full_mode_ignores_description_file_option(
+        self, sample_project
+    ):
+        rst = generate(
+            project_root=sample_project,
+            output=sample_project / "out.rst",
+            extensions=[".py"],
+            ignore=["__pycache__", "*.pyc"],
+            mode="full",
+            file_options={"src/app.py": {"description": "Main application"}},
+        )
+        assert ":description:" not in rst
+        assert ".. literalinclude::" in rst
+
 
 # ----------------------------------------------------------------------------
 # load_config
