@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any
 
 __title__ = "sphinx-source-tree"
-__version__ = "0.2.4"
+__version__ = "0.2.5"
 __author__ = "Artur Barseghyan <artur.barseghyan@gmail.com>"
 __copyright__ = "2026 Artur Barseghyan"
 __license__ = "MIT"
