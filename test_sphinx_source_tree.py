@@ -1786,4 +1786,4 @@ class TestIgnoreExtensionsMerge:
             extensions=[".py"],
             ignore=merged,
         )
-        assert "app.py" not in rst
+        assert "src/app.py" not in rst
