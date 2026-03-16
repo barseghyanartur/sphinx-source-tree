@@ -16,23 +16,11 @@ are used for versioning (schema follows below):
   0.3.4 to 0.4).
 - All backwards incompatible changes are mentioned in this document.
 
-0.2.5
------
-2026-03-16
-
-- Minor fixes.
-
 0.2.4
 -----
-2026-03-12
+2026-03-17
 
-- Added ``mode`` option (``full`` | ``headers``) to control output content.
-  ``full`` (default) preserves existing behaviour — ASCII tree plus
-  ``literalinclude`` blocks.  ``headers`` emits the ASCII tree and one RST
-  section heading per collected file, with no file contents, making it
-  suitable for lightweight index pages.  Available via
-  ``pyproject.toml`` top-level, ``[[files]]`` entries, the ``--mode`` CLI
-  flag, and the ``mode`` keyword argument to ``generate()``.
+- Minor fixes.
 
 0.2.3
 -----
