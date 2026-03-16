@@ -52,12 +52,15 @@ Virtual environment
 -------------------
 You are advised to work in virtual environment.
 
-TL;DR:
-
 .. code-block:: sh
 
-    uv sync
-    uv pip install -e .'[all]'
+    make create-venv
+
+Installation
+-------------
+.. code-block:: sh
+
+    make install
 
 Documentation
 -------------
@@ -72,7 +75,7 @@ all supported environments. For that use tox.
 
 .. code-block:: sh
 
-    tox
+    make test
 
 In any case, GitHub Actions will catch potential errors, but using tox speeds
 things up.

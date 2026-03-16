@@ -1,5 +1,5 @@
 # Update version ONLY here
-VERSION := 0.2.3
+VERSION := 0.2.4
 SHELL := /bin/bash
 # Makefile for project
 VENV := .venv/bin/activate
@@ -7,49 +7,55 @@ UNAME_S := $(shell uname -s)
 
 # Build documentation using Sphinx and zip it
 build-docs:
-	source $(VENV) && python scripts/generate_project_source_tree.py
-	source $(VENV) && sphinx-build -n -b text docs builddocs
-	source $(VENV) && sphinx-build -n -a -b html docs builddocs
+	uv run sphinx-source-tree
+	uv run sphinx-build -n -b text docs builddocs
+	uv run sphinx-build -n -a -b html docs builddocs
 	cd builddocs && zip -r ../builddocs.zip . -x ".*" && cd ..
 
 rebuild-docs:
-	source $(VENV) && sphinx-apidoc . --full -o docs -H 'sphinx-llms-txt-link' -A 'Artur Barseghyan <artur.barseghyan@gmail.com>' -f -d 20
+	uv run sphinx-apidoc . --full -o docs -H 'sphinx-llms-txt-link' -A 'Artur Barseghyan <artur.barseghyan@gmail.com>' -f -d 20
 	cp docs/index.rst.distrib docs/index.rst
 	cp docs/conf.py.distrib docs/conf.py
+
+auto-build-docs:
+	uv run sphinx-autobuild docs docs/_build/html --port 5001
+
+source-tree:
+	uv run sphinx-source-tree
 
 pre-commit:
 	pre-commit run --all-files
 
 doc8:
-	source $(VENV) && doc8
+	uv run doc8
 
 # Run ruff on the codebase
 ruff:
-	source $(VENV) && ruff check . --fix
-	source $(VENV) && ruff format .
+	uv run ruff check . --fix
+	uv run ruff format .
 
 # Serve the built docs on port 5001
 serve-docs:
-	source $(VENV) && python -m http.server 5001 --directory builddocs/
+	uv run python -m http.server 5001 --directory builddocs/
 
-venv:
+create-venv:
 	uv sync
 
 # Install the project
 install:
-	source $(VENV) && uv pip install -e .'[all]'
+	uv sync --all-extras
 
 test: clean
-	source $(VENV) && pytest -vrx -s
+	uv run pytest -vrx -s
 
 shell:
-	source $(VENV) && ipython
+	uv run ipython
 
 create-secrets:
-	source $(VENV) && detect-secrets scan > .secrets.baseline
+	uv run detect-secrets scan > .secrets.baseline
 
 detect-secrets:
-	source $(VENV) && detect-secrets scan --baseline .secrets.baseline
+	uv run detect-secrets scan --baseline .secrets.baseline
 
 # Clean up generated files
 clean:
@@ -72,10 +78,10 @@ clean:
 	rm -rf dist/
 
 compile-requirements:
-	source $(VENV) && uv pip compile --all-extras -o docs/requirements.txt pyproject.toml
+	uv pip compile --all-extras -o docs/requirements.txt pyproject.toml
 
 compile-requirements-upgrade:
-	source $(VENV) && uv pip compile --all-extras -o docs/requirements.txt pyproject.toml --upgrade
+	uv pip compile --all-extras -o docs/requirements.txt pyproject.toml --upgrade
 
 update-version:
 	@if [ "$(UNAME_S)" = "Darwin" ]; then \
@@ -87,19 +93,19 @@ update-version:
 	fi
 
 build:
-	source $(VENV) && python -m build .
+	uv run python -m build .
 
 check-build:
-	source $(VENV) && twine check dist/*
+	uv run twine check dist/*
 
 release:
-	source $(VENV) && twine upload dist/* --verbose
+	uv run twine upload dist/* --verbose
 
 test-release:
-	source $(VENV) && twine upload --repository testpypi dist/*
+	uv run twine upload --repository testpypi dist/*
 
 mypy:
-	source $(VENV) && mypy sphinx_source_tree.py
+	uv run mypy sphinx_source_tree.py
 
 %:
 	@:

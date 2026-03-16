@@ -11,6 +11,7 @@ Contents:
    index
    security
    contributor_guidelines
-   code_of_conduct
+   llms
    changelog
    package
+   code_of_conduct
