@@ -78,10 +78,10 @@ clean:
 	rm -rf dist/
 
 compile-requirements:
-	uv run pip compile --all-extras -o docs/requirements.txt pyproject.toml
+	uv pip compile --all-extras -o docs/requirements.txt pyproject.toml
 
 compile-requirements-upgrade:
-	uv run pip compile --all-extras -o docs/requirements.txt pyproject.toml --upgrade
+	uv pip compile --all-extras -o docs/requirements.txt pyproject.toml --upgrade
 
 update-version:
 	@if [ "$(UNAME_S)" = "Darwin" ]; then \
