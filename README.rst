@@ -120,8 +120,13 @@ CLI reference
     the defaults rather than replace them.
 
 ``-w, --whitelist DIR [DIR ...]``
-    Restrict output to these directories.  Ignored when
-    ``--include-all`` is active.
+    Restrict output to these files and directories.  Ignored when
+    ``--include-all`` is active.  Works for both:
+
+    - If a directory is whitelisted (e.g., ``src``), that directory and
+      all files within it are included.
+    - If a file is whitelisted (e.g., ``src/app.py``), only that file
+      is included (the parent directory is shown as an ancestor).
 
 ``--include-all / --no-include-all``
     Include everything regardless of whitelist.  Default: on.

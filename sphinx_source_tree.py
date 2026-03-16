@@ -640,7 +640,14 @@ def generate(
         resolved union of ``system_ignore`` and ``user_ignore`` is passed
         here (unless ``ignore`` was set explicitly to override both).
     whitelist:
-        Directories to restrict to (ignored when *include_all* is true).
+        File and directory paths to restrict to (ignored when *include_all*
+        is true).  Works for both files and directories:
+
+        - If a directory is whitelisted (e.g., ``"src"``), that directory and
+          all files within it are included.
+        - If a file is whitelisted (e.g., ``"src/app.py"``), only that file
+          is included (the parent directory is shown as an ancestor).
+        - Both files and directories can be mixed in the whitelist.
     include_all:
         Bypass the whitelist.
     title:
