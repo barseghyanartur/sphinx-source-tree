@@ -139,13 +139,6 @@ CLI reference
     collected files follow in their default sorted order.  Has no
     effect on the ASCII directory tree.
 
-``--mode {full,headers}``
-    Output mode.  ``full`` (default) emits the ASCII tree followed by
-    ``literalinclude`` blocks for every collected file.  ``headers``
-    emits the ASCII tree followed by section headings only — one
-    heading per file, with no file contents.  Useful for producing a
-    lightweight index page.
-
 ``--stdout``
     Write to stdout instead of the output file.
 
@@ -453,77 +446,6 @@ pass whichever dict applies:
 
 Absolute paths are also accepted as keys and are resolved relative to
 ``project_root`` automatically.
-
-Headers-only mode
------------------
-
-Setting ``mode = "headers"`` produces an output file that contains the
-ASCII directory tree followed by one clickable RST section heading per
-collected file, but **no** ``literalinclude`` content.  Each heading is
-a hyperlink to the source file.
-
-The optional ``rename-extension-to`` key (only active in ``headers``
-mode) restricts the file listing to ``.rst`` files only and rewrites
-every link target's extension.  For example, setting
-``rename-extension-to = ".txt"`` turns ``README.rst`` into a heading
-that links to ``README.txt``.  This is the standard pattern for
-generating an ``llms.txt``-style index that points to the plain-text
-renderings published alongside your Sphinx documentation.  The ASCII
-directory tree is unaffected.
-
-**Via** ``pyproject.toml``
-
-.. code-block:: toml
-
-   [tool.sphinx-source-tree]
-   ignore = ["__pycache__", "*.pyc"]
-
-   [[tool.sphinx-source-tree.files]]
-   output = "docs/source_tree.rst"
-   title = "Full project source"
-   mode = "full"             # default — tree + literalinclude blocks
-
-   [[tool.sphinx-source-tree.files]]
-   output = "docs/index_only.rst"
-   title = "Project Documentation Files"
-   mode = "headers"          # tree + clickable headings, no file contents
-
-   [[tool.sphinx-source-tree.files]]
-   output = "docs/llms.rst"
-   title = "Project source-tree"
-   mode = "headers"
-   rename-extension-to = ".txt"   # .rst-only listing, links → .txt
-
-**Via the CLI**
-
-.. code-block:: sh
-
-   sphinx-source-tree --mode headers --stdout
-
-**Via the Python API**
-
-.. code-block:: python
-
-   from pathlib import Path
-   from sphinx_source_tree import generate
-
-   # Plain headers index
-   rst = generate(
-       project_root=Path("."),
-       output=Path("docs/index_only.rst"),
-       extensions=[".py", ".rst"],
-       mode="headers",
-   )
-   Path("docs/index_only.rst").write_text(rst)
-
-   # llms.txt-style index — .rst files only, links point to .txt renderings
-   rst = generate(
-       project_root=Path("."),
-       output=Path("docs/llms.rst"),
-       mode="headers",
-       rename_extension_to=".txt",
-   )
-   Path("docs/llms.rst").write_text(rst)
 
 Python API
 ----------

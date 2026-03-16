@@ -105,11 +105,6 @@ DEFAULTS: dict[str, Any] = {
     "file_options_profiles": {},
     "file_options_profile": None,
     "order": [],
-    "mode": "full",
-    "rename_extension_to": None,
-    # headers mode (llms.txt-style) extras
-    "description": "",
-    "optional": [],
 }
 
 LANGUAGE_MAP: dict[str, str] = {
@@ -162,19 +157,9 @@ LANGUAGE_MAP: dict[str, str] = {
     ".makefile": "makefile",
 }
 
-# Valid per-file options.
-# ``description`` and ``url`` are used only in ``mode="headers"`` and are
-# silently skipped when building ``literalinclude`` blocks in full mode.
+# Valid per-file literalinclude options (subset that controls content range).
 VALID_FILE_OPTIONS: frozenset[str] = frozenset(
-    [
-        "description",
-        "url",
-        "lines",
-        "start-at",
-        "start-after",
-        "end-before",
-        "end-at",
-    ]
+    ["lines", "start-at", "start-after", "end-before", "end-at"]
 )
 
 
@@ -630,10 +615,6 @@ def generate(
     extra_languages: dict[str, str] | None = None,
     file_options: dict[str, dict[str, Any]] | None = None,
     order: list[str] | None = None,
-    mode: str = "full",
-    rename_extension_to: str | None = None,
-    description: str = "",
-    optional: list[str] | None = None,
 ) -> str:
     """Build the full ``.rst`` document and return it as a string.
 
@@ -718,31 +699,6 @@ def generate(
             [[tool.sphinx-source-tree.files]]
             output = "docs/source_tree.rst"
             order = ["src/core.py", "src/utils.py"]
-    mode:
-        Output mode.  ``"full"`` (default) generates the ASCII tree followed
-        by ``literalinclude`` blocks for every collected file.
-        ``"headers"`` generates an `llms.txt`-style index in RST format:
-        an H1 title, an optional blockquote description, and H2 sections
-        (one per top-level directory) containing bullet-list hyperlinks to
-        each file.  No ASCII tree or ``literalinclude`` content is emitted.
-    rename_extension_to:
-        Only active when ``mode="headers"``.  When set (e.g. ``".txt"``),
-        the file listing is restricted to ``.rst`` files only, and every
-        link target has its extension replaced with the given value.  For
-        example, ``README.rst`` becomes `` `README.txt <../README.txt>`_ ``.
-        Useful for generating an ``llms.txt``-style index that points to
-        plain-text renderings of documentation pages.
-    description:
-        Only active when ``mode="headers"``.  Short summary rendered as an
-        RST blockquote immediately below the H1 title (the equivalent of
-        the ``> ...`` blockquote in the ``llms.txt`` Markdown spec).
-    optional:
-        Only active when ``mode="headers"``.  A list of glob patterns
-        (matched against relative file paths and bare file names).  Files
-        matching any pattern are placed in a trailing ``Optional`` section
-        instead of their normal directory group.  The ``Optional`` section
-        has the same meaning as in the ``llms.txt`` spec — content that
-        consumers may skip when a shorter context is needed.
     """
     root = Path(project_root).resolve()
     output_dir = Path(output).resolve().parent
@@ -777,102 +733,6 @@ def generate(
     )
     files = _apply_order(files, order or [], root)
 
-    # ------------------------------------------------------------------
-    # headers mode — llms.txt-style RST index
-    # ------------------------------------------------------------------
-    if mode == "headers":
-        title_underline = "=" * len(title)
-        parts: list[str] = [title, title_underline, ""]
-
-        if description:
-            parts.extend(
-                f"   {line}" if line.strip() else ""
-                for line in description.splitlines()
-            )
-            parts.append("")
-
-        # Partition files into directory groups and the Optional bucket.
-        # Insertion order of `groups` defines section order (mirrors the
-        # `order`-aware file list above).
-        _optional_patterns: list[str] = optional or []
-        groups: dict[str, list[Path]] = {}
-        optional_bucket: list[Path] = []
-
-        for fp in files:
-            rel = fp.relative_to(root).as_posix()
-            if rename_extension_to is not None and fp.suffix != ".rst":
-                continue
-            include_path = os.path.relpath(fp, output_dir).replace(os.sep, "/")
-            # Files outside the Sphinx source directory produce "../…" paths.
-            # When rename_extension_to is active that results in a ".txt" URL
-            # that Sphinx never renders.  Warn and skip unless the user has
-            # supplied an explicit ``url`` override via file_options.
-            out_of_tree = (
-                rename_extension_to is not None
-                and include_path.startswith("../")
-            )
-            if out_of_tree and not _file_options.get(rel, {}).get("url"):
-                bad_link = include_path.replace(
-                    ".rst", rename_extension_to or ""
-                )
-                print(
-                    f"Warning: '{rel}' is outside the Sphinx source "
-                    f"directory; its auto-computed link '{bad_link}' "
-                    f"is not a URL Sphinx renders.  Add "
-                    f'file-options."{rel}".url = "<target>" to set '
-                    f"the correct URL.",
-                    file=sys.stderr,
-                )
-                continue
-            if _optional_patterns and _is_ignored(
-                rel, fp.name, _optional_patterns
-            ):
-                optional_bucket.append(fp)
-            else:
-                group_key = Path(rel).parts[0] if "/" in rel else ""
-                if group_key not in groups:
-                    groups[group_key] = []
-                groups[group_key].append(fp)
-
-        def _section_name(key: str) -> str:
-            if not key:
-                return "Root"
-            return key.replace("-", " ").replace("_", " ").title()
-
-        def _file_bullet(fp: Path) -> str:
-            rel = fp.relative_to(root).as_posix()
-            opts = _file_options.get(rel, {})
-            include_path = os.path.relpath(fp, output_dir).replace(os.sep, "/")
-            if rename_extension_to is not None:
-                display = str(Path(rel).with_suffix(rename_extension_to))
-                link = opts.get(
-                    "url",
-                    str(Path(include_path).with_suffix(rename_extension_to)),
-                )
-            else:
-                display = rel
-                link = opts.get("url", include_path)
-            entry = f"- `{display} <{link}>`_"
-            if opts.get("description"):
-                entry += f": {opts['description']}"
-            return entry
-
-        for group_key, group_files in groups.items():
-            section_name = _section_name(group_key)
-            parts.extend([section_name, "-" * len(section_name), ""])
-            parts.extend(_file_bullet(fp) for fp in group_files)
-            parts.append("")
-
-        if optional_bucket:
-            parts.extend(["Optional", "--------", ""])
-            parts.extend(_file_bullet(fp) for fp in optional_bucket)
-            parts.append("")
-
-        return "\n".join(parts)
-
-    # ------------------------------------------------------------------
-    # full mode — ASCII tree + literalinclude blocks (unchanged)
-    # ------------------------------------------------------------------
     underline = "=" * len(title)
     header = (
         f"{title}\n"
@@ -939,12 +799,6 @@ def _generate_from_cfg(cfg: dict[str, Any]) -> str:
         extra_languages=cfg.get("extra_languages"),
         file_options=_resolve_file_options_profile(cfg),
         order=cfg.get("order"),
-        mode=cfg.get("mode", DEFAULTS["mode"]),
-        rename_extension_to=cfg.get(
-            "rename_extension_to", DEFAULTS["rename_extension_to"]
-        ),
-        description=cfg.get("description", DEFAULTS["description"]),
-        optional=cfg.get("optional", DEFAULTS["optional"]),
     )
 
 
@@ -1066,36 +920,6 @@ def build_parser() -> argparse.ArgumentParser:
             "Listed files appear first, in the given sequence; "
             "remaining files follow in default sorted order. "
             "Does not affect the directory tree."
-        ),
-    )
-    p.add_argument(
-        "--mode",
-        default=None,
-        choices=["full", "headers"],
-        help=(
-            'Output mode: "full" (default) emits the tree + literalinclude '
-            'blocks; "headers" emits an llms.txt-style RST index with H2 '
-            "sections grouped by directory (no file contents)."
-        ),
-    )
-    p.add_argument(
-        "--description",
-        default=None,
-        help=(
-            "Short project summary rendered as an RST blockquote below the "
-            "title (headers mode only; equivalent to the '> ...' blockquote "
-            "in the llms.txt spec)."
-        ),
-    )
-    p.add_argument(
-        "--optional",
-        nargs="+",
-        default=None,
-        metavar="PAT",
-        help=(
-            "Glob patterns for files to place in the trailing 'Optional' "
-            "section (headers mode only).  These files are listed last and "
-            "may be skipped when a shorter context is needed."
         ),
     )
     p.add_argument(

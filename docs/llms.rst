@@ -1,9 +1,21 @@
+.. include:: ../README.rst
 
-Project source-tree
-===================
-
-Root
 ----
 
-- `README.txt <README.txt>`_: Project overview
-- `CONTRIBUTING.txt <CONTRIBUTING.txt>`_
+.. include:: security.rst
+
+----
+
+.. include:: contributor_guidelines.rst
+
+----
+
+.. include:: changelog.rst
+
+----
+
+.. include:: package.rst
+
+----
+
+.. include:: source_tree.rst

@@ -12,7 +12,6 @@ Contents:
    security
    contributor_guidelines
    llms
-   full-llms
    changelog
    package
    code_of_conduct

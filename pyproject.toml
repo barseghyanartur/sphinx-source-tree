@@ -149,7 +149,6 @@ ignore-path = [
     "docs/requirements.txt",
     "sphinx_source_tree.egg-info/SOURCES.txt",
     "docs/llms.rst",
-    "docs/full-llms.rst",
     "docs/source_tree.rst",
 ]
 
@@ -230,7 +229,6 @@ user-ignore = [
     "docs/requirements.txt",
     "docs/contributor_guidelines.rst",
     "docs/documentation.rst",
-    "docs/full-llms.rst",
     "docs/llms.rst",
     "docs/package.rst",
     "docs/index.rst",
@@ -240,21 +238,3 @@ order = [
     "README.rst",
     "CONTRIBUTING.rst",
 ]
-
-[[tool.sphinx-source-tree.files]]
-output = "docs/llms.rst"
-title = "Project source-tree"
-mode = "headers"
-rename-extension-to = ".txt"
-
-[[tool.sphinx-source-tree.files]]
-output = "docs/full-llms.rst"
-title = "Full project source-tree"
-mode = "full"
-
-[tool.sphinx-source-tree.file-options."README.rst"]
-url = "README.txt"
-description = "Project overview"
-
-[tool.sphinx-source-tree.file-options."CONTRIBUTING.rst"]
-url = "CONTRIBUTING.txt"
